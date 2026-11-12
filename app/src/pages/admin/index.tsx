@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ShipmentsApi, PaymentsApi, AuthApi, ContentApi, UploadsApi } from '../../lib/api'
-import { Card, Button, StatusBadge, Spinner, EmptyState, Pill } from '../../components/ui/primitives'
+import { Card, Button, StatusBadge, Spinner, EmptyState, Pill, Input, Textarea, Select, Label } from '../../components/ui/primitives'
 import { useAuth } from '../../hooks/useAuth'
 import {
   LayoutDashboard, Package, Wallet, FileText, Image as ImageIcon, Settings, LogOut, Plus, Trash2, ChevronRight,
@@ -20,6 +20,165 @@ const sidebarLinks = [
   { to: '/admin/media', icon: ImageIcon, label: 'Media' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ]
+
+const SHIPMENT_STATUSES = [
+  'created', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered',
+  'awaiting_customs_clearance', 'awaiting_payment', 'customs_hold',
+  'payment_verification', 'cancelled', 'on_hold', 'returned',
+]
+
+const inputNumber = (v: string) => (v === '' ? null : Number(v))
+const dateValue = (v: any) => (v ? String(v).slice(0, 10) : '')
+
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="sm:col-span-2 lg:col-span-3">
+      <h4 className="text-sm font-bold uppercase tracking-wide text-dtl-charcoal mb-3">{title}</h4>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{children}</div>
+    </div>
+  )
+}
+
+function FormField({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <Label>{label}</Label>
+      {children}
+    </div>
+  )
+}
+
+function ShipmentFields({
+  value,
+  onChange,
+  includeTracking = false,
+}: {
+  value: any
+  onChange: (key: string, fieldValue: any) => void
+  includeTracking?: boolean
+}) {
+  return (
+    <>
+      <FormSection title="Shipment details">
+        {includeTracking && (
+          <FormField label="Tracking number">
+            <Input value={value.tracking_number ?? ''} onChange={e => onChange('tracking_number', e.target.value)} placeholder="Auto-generated if left blank" />
+          </FormField>
+        )}
+        <FormField label="Reference">
+          <Input value={value.reference ?? ''} onChange={e => onChange('reference', e.target.value)} placeholder="Customer reference / PO number" />
+        </FormField>
+        <FormField label="Service">
+          <Input value={value.service ?? ''} onChange={e => onChange('service', e.target.value)} placeholder="Air Freight, Sea Freight, ..." />
+        </FormField>
+        <FormField label="Status">
+          <Select value={value.status ?? 'created'} onChange={e => onChange('status', e.target.value)}>
+            {SHIPMENT_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Weight (kg)">
+          <Input type="number" min="0" step="0.001" value={value.weight_kg ?? ''} onChange={e => onChange('weight_kg', inputNumber(e.target.value))} />
+        </FormField>
+        <FormField label="Pieces">
+          <Input type="number" min="0" step="1" value={value.pieces ?? ''} onChange={e => onChange('pieces', inputNumber(e.target.value))} />
+        </FormField>
+        <FormField label="Dimensions">
+          <Input value={value.dimensions ?? ''} onChange={e => onChange('dimensions', e.target.value)} placeholder="e.g. 120 × 80 × 100 cm" />
+        </FormField>
+        <FormField label="Estimated delivery">
+          <Input type="date" value={dateValue(value.estimated_delivery)} onChange={e => onChange('estimated_delivery', e.target.value || null)} />
+        </FormField>
+        <FormField label="Actual delivery">
+          <Input type="date" value={dateValue(value.actual_delivery)} onChange={e => onChange('actual_delivery', e.target.value || null)} />
+        </FormField>
+        <FormField label="Notes" className="sm:col-span-2 lg:col-span-3">
+          <Textarea rows={3} value={value.notes ?? ''} onChange={e => onChange('notes', e.target.value)} placeholder="Internal notes, special instructions, etc." />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Sender information">
+        <FormField label="Sender name">
+          <Input value={value.sender_name ?? ''} onChange={e => onChange('sender_name', e.target.value)} />
+        </FormField>
+        <FormField label="Sender company">
+          <Input value={value.sender_company ?? ''} onChange={e => onChange('sender_company', e.target.value)} />
+        </FormField>
+        <FormField label="Sender phone">
+          <Input value={value.sender_phone ?? ''} onChange={e => onChange('sender_phone', e.target.value)} />
+        </FormField>
+        <FormField label="Sender country">
+          <Input value={value.sender_country ?? ''} onChange={e => onChange('sender_country', e.target.value)} />
+        </FormField>
+        <FormField label="Sender address" className="sm:col-span-2 lg:col-span-3">
+          <Input value={value.sender_address ?? ''} onChange={e => onChange('sender_address', e.target.value)} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Recipient information">
+        <FormField label="Recipient name">
+          <Input value={value.receiver_name ?? ''} onChange={e => onChange('receiver_name', e.target.value)} />
+        </FormField>
+        <FormField label="Recipient company">
+          <Input value={value.receiver_company ?? ''} onChange={e => onChange('receiver_company', e.target.value)} />
+        </FormField>
+        <FormField label="Recipient phone">
+          <Input value={value.receiver_phone ?? ''} onChange={e => onChange('receiver_phone', e.target.value)} />
+        </FormField>
+        <FormField label="Recipient email">
+          <Input type="email" value={value.receiver_email ?? ''} onChange={e => onChange('receiver_email', e.target.value)} />
+        </FormField>
+        <FormField label="Recipient country">
+          <Input value={value.receiver_country ?? ''} onChange={e => onChange('receiver_country', e.target.value)} />
+        </FormField>
+        <FormField label="Recipient address" className="sm:col-span-2 lg:col-span-3">
+          <Input value={value.receiver_address ?? ''} onChange={e => onChange('receiver_address', e.target.value)} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Origin">
+        <FormField label="Origin name">
+          <Input value={value.origin_name ?? ''} onChange={e => onChange('origin_name', e.target.value)} />
+        </FormField>
+        <FormField label="Origin country">
+          <Input value={value.origin_country ?? ''} onChange={e => onChange('origin_country', e.target.value)} />
+        </FormField>
+        <FormField label="Origin latitude">
+          <Input type="number" step="any" value={value.origin_lat ?? ''} onChange={e => onChange('origin_lat', inputNumber(e.target.value))} />
+        </FormField>
+        <FormField label="Origin longitude">
+          <Input type="number" step="any" value={value.origin_lng ?? ''} onChange={e => onChange('origin_lng', inputNumber(e.target.value))} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Destination">
+        <FormField label="Destination name">
+          <Input value={value.destination_name ?? ''} onChange={e => onChange('destination_name', e.target.value)} />
+        </FormField>
+        <FormField label="Destination country">
+          <Input value={value.destination_country ?? ''} onChange={e => onChange('destination_country', e.target.value)} />
+        </FormField>
+        <FormField label="Destination latitude">
+          <Input type="number" step="any" value={value.destination_lat ?? ''} onChange={e => onChange('destination_lat', inputNumber(e.target.value))} />
+        </FormField>
+        <FormField label="Destination longitude">
+          <Input type="number" step="any" value={value.destination_lng ?? ''} onChange={e => onChange('destination_lng', inputNumber(e.target.value))} />
+        </FormField>
+      </FormSection>
+
+      <FormSection title="Current position">
+        <FormField label="Current location label" className="sm:col-span-2 lg:col-span-3">
+          <Input value={value.current_location_label ?? ''} onChange={e => onChange('current_location_label', e.target.value)} placeholder="e.g. Customs clearance, Lagos" />
+        </FormField>
+        <FormField label="Current latitude">
+          <Input type="number" step="any" value={value.current_lat ?? ''} onChange={e => onChange('current_lat', inputNumber(e.target.value))} />
+        </FormField>
+        <FormField label="Current longitude">
+          <Input type="number" step="any" value={value.current_lng ?? ''} onChange={e => onChange('current_lng', inputNumber(e.target.value))} />
+        </FormField>
+      </FormSection>
+    </>
+  )
+}
 
 export function AdminLayout() {
   const { profile, loading, signOut } = useAuth()
@@ -171,6 +330,14 @@ export function AdminShipments() {
     },
   })
 
+  const deleteMut = useMutation({
+    mutationFn: (shipmentId: string) => ShipmentsApi.remove(shipmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-analytics'] })
+    },
+  })
+
   const set = (key: string, value: any) => setForm((prev: any) => ({ ...prev, [key]: value }))
 
   const handleCreateImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,52 +366,7 @@ export function AdminShipments() {
         <Card className="p-6 mb-8">
           <h3 className="text-lg font-bold text-dtl-black mb-4">Create shipment</h3>
           <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); createMut.mutate(form) }} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <input placeholder="Sender name" value={form.sender_name ?? ''} onChange={(e: any) => set('sender_name', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input placeholder="Sender country" value={form.sender_country ?? ''} onChange={(e: any) => set('sender_country', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input placeholder="Receiver name" value={form.receiver_name ?? ''} onChange={(e: any) => set('receiver_name', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input placeholder="Receiver email" value={form.receiver_email ?? ''} onChange={(e: any) => set('receiver_email', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input placeholder="Origin" value={form.origin_name ?? ''} onChange={(e: any) => set('origin_name', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input placeholder="Destination" value={form.destination_name ?? ''} onChange={(e: any) => set('destination_name', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input placeholder="Service type" value={form.service ?? ''} onChange={(e: any) => set('service', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" step="0.001" placeholder="Weight (kg)" value={form.weight_kg ?? ''} onChange={(e: any) => set('weight_kg', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" placeholder="Pieces" value={form.pieces ?? ''} onChange={(e: any) => set('pieces', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input placeholder="Dimensions" value={form.dimensions ?? ''} onChange={(e: any) => set('dimensions', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <select value={form.status ?? 'created'} onChange={(e: any) => set('status', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40">
-              <option value="created">Created</option>
-              <option value="picked_up">Picked Up</option>
-              <option value="in_transit">In Transit</option>
-              <option value="out_for_delivery">Out for Delivery</option>
-              <option value="delivered">Delivered</option>
-              <option value="awaiting_customs_clearance">Awaiting Customs</option>
-              <option value="awaiting_payment">Awaiting Payment</option>
-              <option value="customs_hold">Customs Hold</option>
-              <option value="on_hold">On Hold</option>
-            </select>
-            <input type="date" placeholder="Est. delivery" value={form.estimated_delivery ?? ''} onChange={(e: any) => set('estimated_delivery', e.target.value)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" step="any" placeholder="Origin latitude" value={form.origin_lat ?? ''} onChange={(e: any) => set('origin_lat', parseFloat(e.target.value) || null)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" step="any" placeholder="Origin longitude" value={form.origin_lng ?? ''} onChange={(e: any) => set('origin_lng', parseFloat(e.target.value) || null)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" step="any" placeholder="Destination latitude" value={form.destination_lat ?? ''} onChange={(e: any) => set('destination_lat', parseFloat(e.target.value) || null)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" step="any" placeholder="Destination longitude" value={form.destination_lng ?? ''} onChange={(e: any) => set('destination_lng', parseFloat(e.target.value) || null)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" step="any" placeholder="Current latitude" value={form.current_lat ?? ''} onChange={(e: any) => set('current_lat', parseFloat(e.target.value) || null)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            <input type="number" step="any" placeholder="Current longitude" value={form.current_lng ?? ''} onChange={(e: any) => set('current_lng', parseFloat(e.target.value) || null)}
-              className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
+            <ShipmentFields value={form} onChange={set} includeTracking />
 
             <div className="sm:col-span-2 lg:col-span-3">
               <label className="block text-xs font-semibold text-dtl-charcoal mb-2">Shipment images (optional)</label>
@@ -265,8 +387,12 @@ export function AdminShipments() {
               )}
             </div>
 
+            {createMut.isError && (
+              <p className="sm:col-span-2 lg:col-span-3 text-sm text-dtl-red">{(createMut.error as any)?.message}</p>
+            )}
+
             <div className="flex gap-2">
-              <Button type="submit" disabled={createMut.isPending}>Create</Button>
+              <Button type="submit" disabled={createMut.isPending}>{createMut.isPending ? 'Creating…' : 'Create'}</Button>
               <Button type="button" variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
             </div>
           </form>
@@ -275,6 +401,9 @@ export function AdminShipments() {
 
       {isLoading && <Spinner />}
       {error && <p className="text-dtl-red">{(error as any).message}</p>}
+      {deleteMut.isError && (
+        <p className="text-dtl-red text-sm mb-4">{(deleteMut.error as any)?.message}</p>
+      )}
       {!isLoading && !error && shipments.length === 0 && <EmptyState title="No shipments" />}
       {shipments.length > 0 && (
         <div className="overflow-x-auto rounded-card ring-1 ring-dtl-border">
@@ -298,9 +427,23 @@ export function AdminShipments() {
                   <td className="p-4"><StatusBadge status={s.status} /></td>
                   <td className="p-4 text-dtl-charcoal text-xs">{fmtDate(s.created_at)}</td>
                   <td className="p-4">
-                    <Link to="/admin/shipments/$id" params={{ id: s.id }}>
-                      <ChevronRight className="size-4 text-dtl-charcoal/50" />
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link to="/admin/shipments/$id" params={{ id: s.id }} aria-label="Open shipment">
+                        <ChevronRight className="size-4 text-dtl-charcoal/50" />
+                      </Link>
+                      <button
+                        type="button"
+                        aria-label={`Delete shipment ${s.tracking_number}`}
+                        disabled={deleteMut.isPending && deleteMut.variables === s.id}
+                        onClick={() => {
+                          if (!window.confirm(`Permanently delete shipment ${s.tracking_number}? This removes all tracking events, fees, payments, and images and cannot be undone.`)) return
+                          deleteMut.mutate(s.id)
+                        }}
+                        className="text-dtl-charcoal/50 hover:text-dtl-red transition-colors disabled:opacity-40"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -315,6 +458,7 @@ export function AdminShipments() {
 export function AdminShipment() {
   const { id } = useParams({ from: '/admin/shipments/$id' })
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [newEvent, setNewEvent] = useState({ status: '', location_label: '', note: '', occurred_at: '', lat: '', lng: '' })
   const [newFee, setNewFee] = useState({ name: '', description: '', amount: 0, currency: 'USD', status: 'unpaid' as const, due_date: '', notes: '' })
   const [imageFiles, setImageFiles] = useState<File[]>([])
@@ -332,8 +476,27 @@ export function AdminShipment() {
 
   const updateShipmentMut = useMutation({
     mutationFn: (b: any) => { if (!id) throw new Error('missing id'); return ShipmentsApi.update(id, b) },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-shipment', id] }); setEditingShipment(false) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-shipment', id] })
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-analytics'] })
+      setEditingShipment(false)
+    },
   })
+
+  const deleteShipmentMut = useMutation({
+    mutationFn: () => { if (!id) throw new Error('missing id'); return ShipmentsApi.remove(id) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-analytics'] })
+      navigate({ to: '/admin/shipments' })
+    },
+  })
+
+  const confirmDeleteShipment = (label: string) => {
+    if (!window.confirm(`Permanently delete shipment ${label}? This removes all tracking events, fees, payments, and images and cannot be undone.`)) return
+    deleteShipmentMut.mutate()
+  }
 
   const addEventMut = useMutation({
     mutationFn: (b: any) => { if (!id) throw new Error('missing id'); return ShipmentsApi.addEvent(id, b) },
@@ -427,68 +590,30 @@ export function AdminShipment() {
         <Button variant="outline" onClick={() => { setEditingShipment(!editingShipment); setShipmentForm(shipment) }}>
           <Edit3 className="size-4" /> {editingShipment ? 'Cancel' : 'Edit'}
         </Button>
+        <Button variant="outline" className="text-dtl-red border-dtl-red/40 hover:bg-dtl-red/5"
+          onClick={() => confirmDeleteShipment(shipment.tracking_number)}
+          disabled={deleteShipmentMut.isPending}>
+          <Trash2 className="size-4" /> {deleteShipmentMut.isPending ? 'Deleting…' : 'Delete'}
+        </Button>
       </div>
+
+      {deleteShipmentMut.isError && (
+        <p className="text-sm text-dtl-red">{(deleteShipmentMut.error as any)?.message}</p>
+      )}
 
       {editingShipment && (
         <Card className="p-6">
           <h3 className="text-lg font-bold text-dtl-black mb-4">Edit shipment</h3>
           <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); updateShipmentMut.mutate(shipmentForm) }} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Status</label>
-              <select value={shipmentForm.status ?? ''} onChange={(e: any) => setShip('status', e.target.value)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40">
-                {['created','picked_up','in_transit','out_for_delivery','delivered','awaiting_customs_clearance','awaiting_payment','customs_hold','payment_verification','cancelled','on_hold','returned'].map(s => (
-                  <option key={s} value={s}>{statusLabel(s)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Current location</label>
-              <input value={shipmentForm.current_location_label ?? ''} onChange={(e: any) => setShip('current_location_label', e.target.value)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Est. delivery</label>
-              <input type="date" value={shipmentForm.estimated_delivery ? shipmentForm.estimated_delivery.slice(0,10) : ''} onChange={(e: any) => setShip('estimated_delivery', e.target.value)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Origin latitude</label>
-              <input type="number" step="any" value={shipmentForm.origin_lat ?? ''} onChange={(e: any) => setShip('origin_lat', parseFloat(e.target.value) || null)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Origin longitude</label>
-              <input type="number" step="any" value={shipmentForm.origin_lng ?? ''} onChange={(e: any) => setShip('origin_lng', parseFloat(e.target.value) || null)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Destination latitude</label>
-              <input type="number" step="any" value={shipmentForm.destination_lat ?? ''} onChange={(e: any) => setShip('destination_lat', parseFloat(e.target.value) || null)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Destination longitude</label>
-              <input type="number" step="any" value={shipmentForm.destination_lng ?? ''} onChange={(e: any) => setShip('destination_lng', parseFloat(e.target.value) || null)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Current latitude</label>
-              <input type="number" step="any" value={shipmentForm.current_lat ?? ''} onChange={(e: any) => setShip('current_lat', parseFloat(e.target.value) || null)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Current longitude</label>
-              <input type="number" step="any" value={shipmentForm.current_lng ?? ''} onChange={(e: any) => setShip('current_lng', parseFloat(e.target.value) || null)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Notes</label>
-              <input value={shipmentForm.notes ?? ''} onChange={(e: any) => setShip('notes', e.target.value)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div className="sm:col-span-3 flex gap-2">
-              <Button type="submit" disabled={updateShipmentMut.isPending}><Save className="size-4" /> Save</Button>
+            <ShipmentFields value={shipmentForm} onChange={setShip} includeTracking />
+
+            {updateShipmentMut.isError && (
+              <p className="sm:col-span-2 lg:col-span-3 text-sm text-dtl-red">{(updateShipmentMut.error as any)?.message}</p>
+            )}
+
+            <div className="sm:col-span-2 lg:col-span-3 flex gap-2">
+              <Button type="submit" disabled={updateShipmentMut.isPending}><Save className="size-4" /> {updateShipmentMut.isPending ? 'Saving…' : 'Save'}</Button>
+              <Button type="button" variant="ghost" onClick={() => setEditingShipment(false)}>Cancel</Button>
             </div>
           </form>
         </Card>

@@ -46,6 +46,7 @@ router.post('/', authUser, requireAdmin, async (req, res, next) => {
       'current_lat','current_lng','current_location_label',
       'weight_kg','pieces','dimensions','status','estimated_delivery','actual_delivery','notes',
     ])
+    if (payload.tracking_number) payload.tracking_number = String(payload.tracking_number).trim().toUpperCase()
     if (!payload.tracking_number) payload.tracking_number = 'DTL-' + Math.random().toString(36).slice(2, 8).toUpperCase()
     if (payload.current_lat == null && payload.origin_lat != null) { payload.current_lat = payload.origin_lat; payload.current_lng = payload.origin_lng }
     if (!payload.current_location_label && payload.origin_name) payload.current_location_label = payload.origin_name
@@ -59,7 +60,7 @@ router.post('/', authUser, requireAdmin, async (req, res, next) => {
 router.patch('/:id', authUser, requireAdmin, requireUUID('id'), async (req, res, next) => {
   try {
     const payload = stripFields(req.body || {}, [
-      'reference','service','category_id',
+      'tracking_number','reference','service','category_id',
       'sender_name','sender_company','sender_address','sender_country','sender_phone',
       'receiver_name','receiver_company','receiver_address','receiver_country','receiver_phone','receiver_email',
       'origin_name','origin_country','origin_lat','origin_lng',
@@ -67,16 +68,39 @@ router.patch('/:id', authUser, requireAdmin, requireUUID('id'), async (req, res,
       'current_lat','current_lng','current_location_label',
       'weight_kg','pieces','dimensions','status','estimated_delivery','actual_delivery','notes',
     ])
-    const { data, error } = await supabaseAdmin.from('shipments').update(payload).eq('id', req.params.id).select().single()
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ error: 'no fields to update' })
+    }
+    if ('tracking_number' in payload) {
+      payload.tracking_number = String(payload.tracking_number ?? '').trim().toUpperCase()
+      if (!payload.tracking_number) delete payload.tracking_number
+    }
+    const { data, error } = await supabaseAdmin.from('shipments').update(payload).eq('id', req.params.id).select().maybeSingle()
     if (error) throw error
+    if (!data) return res.status(404).json({ error: 'shipment not found' })
     res.json({ shipment: data })
   } catch (e) { next(e) }
 })
 
 router.delete('/:id', authUser, requireAdmin, requireUUID('id'), async (req, res, next) => {
   try {
-    const { error } = await supabaseAdmin.from('shipments').delete().eq('id', req.params.id)
+    const { data: images } = await supabaseAdmin
+      .from('shipment_images').select('url').eq('shipment_id', req.params.id)
+
+    const { data, error } = await supabaseAdmin
+      .from('shipments').delete().eq('id', req.params.id).select('id')
     if (error) throw error
+    if (!data || data.length === 0) return res.status(404).json({ error: 'shipment not found' })
+
+    // Best-effort storage cleanup; DB rows already cascade.
+    const paths = (images ?? [])
+      .map(img => storagePath(img.url))
+      .filter(Boolean)
+    if (paths.length > 0) {
+      const { error: storageError } = await supabaseAdmin.storage.from('shipment-images').remove(paths)
+      if (storageError) console.warn('[shipments] storage cleanup failed:', storageError.message)
+    }
+
     res.json({ ok: true })
   } catch (e) { next(e) }
 })
@@ -163,6 +187,14 @@ function stripFields(obj, allowed) {
   const out = {}
   for (const k of allowed) if (k in obj && obj[k] !== undefined) out[k] = obj[k]
   return out
+}
+
+function storagePath(url) {
+  if (!url) return null
+  const marker = '/storage/v1/object/public/shipment-images/'
+  const idx = String(url).indexOf(marker)
+  if (idx === -1) return null
+  return decodeURIComponent(String(url).slice(idx + marker.length).split('?')[0])
 }
 
 export default router
