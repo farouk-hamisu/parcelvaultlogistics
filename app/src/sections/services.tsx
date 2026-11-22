@@ -22,7 +22,7 @@ export function Services() {
             </h2>
           </div>
           <p className="lg:col-span-5 text-base text-dtl-charcoal leading-relaxed">
-            Whatever your cargo, DTL has the routes, customs, and operational discipline to move it cleanly across borders — with visibility the whole way.
+            Whatever your cargo, ParcelVault has the routes, customs, and operational discipline to move it cleanly across borders — with visibility the whole way.
           </p>
         </div>
 

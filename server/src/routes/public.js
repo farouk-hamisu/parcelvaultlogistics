@@ -3,6 +3,9 @@ import { supabaseAdmin } from '../lib/supabase.js'
 
 const router = Router()
 
+const DEFAULT_TRACKING_NOTICE =
+  'Please contact your dispatch desk if any holds have been placed on your package for delivery purposes.'
+
 router.get('/track/:trackingNumber', async (req, res, next) => {
   try {
     const raw = req.params.trackingNumber || ''
@@ -24,17 +27,19 @@ router.get('/track/:trackingNumber', async (req, res, next) => {
     const shipment = directResult
     const shipmentId = shipment.id
 
-    const [eventsRes, imagesRes, feesRes, paymentsRes] = await Promise.all([
+    const [eventsRes, imagesRes, feesRes, paymentsRes, settingsRes] = await Promise.all([
       supabaseAdmin.from('tracking_events').select('*').eq('shipment_id', shipmentId).order('occurred_at', { ascending: false }),
       supabaseAdmin.from('shipment_images').select('*').eq('shipment_id', shipmentId).order('created_at'),
       supabaseAdmin.from('shipment_fees').select('*').eq('shipment_id', shipmentId).order('created_at'),
       supabaseAdmin.from('payments').select('id, method, status, amount, currency, card_brand, card_value, created_at')
         .eq('shipment_id', shipmentId).order('created_at', { ascending: false }),
+      supabaseAdmin.from('site_settings').select('tracking_notice').eq('id', 1).maybeSingle(),
     ])
     if (eventsRes.error) throw eventsRes.error
     if (imagesRes.error) throw imagesRes.error
     if (feesRes.error) throw feesRes.error
     if (paymentsRes.error) throw paymentsRes.error
+    if (settingsRes.error) console.warn('[track] notice unavailable:', settingsRes.error.message)
     console.log('[track] events:', eventsRes.data?.length ?? 0, 'images:', imagesRes.data?.length ?? 0,
       'fees:', feesRes.data?.length ?? 0, 'payments:', paymentsRes.data?.length ?? 0)
 
@@ -44,6 +49,7 @@ router.get('/track/:trackingNumber', async (req, res, next) => {
       images: imagesRes.data,
       fees: feesRes.data,
       payments: paymentsRes.data,
+      notice: settingsRes.data?.tracking_notice?.trim() || DEFAULT_TRACKING_NOTICE,
     })
   } catch (e) { next(e) }
 })

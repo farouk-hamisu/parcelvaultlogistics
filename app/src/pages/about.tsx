@@ -9,7 +9,7 @@ export function AboutPage() {
         <div className="absolute inset-0 grid-overlay opacity-30" />
         <img src="/porthandling.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-20" />
         <div className="relative mx-auto max-w-[1320px] px-6">
-          <SectionLabel>About DTL</SectionLabel>
+          <SectionLabel>About ParcelVault</SectionLabel>
           <h1 className="mt-4 text-4xl lg:text-[3.2rem] font-bold leading-[1.08] text-balance">Premium logistics for businesses that demand precision.</h1>
         </div>
       </section>
@@ -18,7 +18,7 @@ export function AboutPage() {
         <div className="grid lg:grid-cols-2 gap-12 items-start">
           <div>
             <h2 className="text-3xl font-bold text-dtl-black">Built by operators, for operators.</h2>
-            <p className="mt-5 text-base text-dtl-charcoal leading-relaxed">DTL was founded by a team of freight forwarders, customs brokers, and supply-chain engineers who believed the logistics experience should match the quality of the cargo being moved. We operate across 190+ countries with bonded warehousing, a 24/7 dispatch desk, and the same SDK-grade tracking infrastructure used by Fortune 500 companies.</p>
+            <p className="mt-5 text-base text-dtl-charcoal leading-relaxed">ParcelVault Logistics was founded by a team of freight forwarders, customs brokers, and supply-chain engineers who believed the logistics experience should match the quality of the cargo being moved. We operate across 190+ countries with bonded warehousing, a 24/7 dispatch desk, and the same SDK-grade tracking infrastructure used by Fortune 500 companies.</p>
             <p className="mt-4 text-base text-dtl-charcoal leading-relaxed">Our platform provides real-time visibility, digital customs duty management, multi-modal shipping (air, sea, road), and live map tracking — all from one dashboard.</p>
 
             <div className="mt-10 grid sm:grid-cols-2 gap-4">

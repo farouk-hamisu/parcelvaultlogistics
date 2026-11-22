@@ -8,8 +8,11 @@ import { LiveMap } from '../components/tracking/live-map'
 import { useParams, useNavigate, useLocation } from '@tanstack/react-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { MapPin, Package, Truck, Search, Image as ImageIcon, Wallet, AlertCircle, CheckCircle2, Upload, Gift } from 'lucide-react'
+import { MapPin, Package, Truck, Search, Image as ImageIcon, Wallet, AlertCircle, CheckCircle2, Upload, Gift, Megaphone } from 'lucide-react'
 import type { Shipment, TrackingEvent, Fee, ShipmentImage, PublicPayment } from '../lib/types'
+
+const DEFAULT_TRACKING_NOTICE =
+  'Please contact your dispatch desk if any holds have been placed on your package for delivery purposes.'
 
 const GIFT_CARD_BRANDS = [
   'Amazon', 'Visa', 'Mastercard', 'Google Play', 'Apple / iTunes',
@@ -19,7 +22,7 @@ const GIFT_CARD_BRANDS = [
 function RouteRow({ icon, name, country }: { icon: React.ReactNode; name?: string | null; country?: string | null }) {
   return (
     <div className="flex items-center gap-4">
-      <div className="size-12 rounded-xl bg-dtl-light-gray flex items-center justify-center text-dtl-red shrink-0">{icon}</div>
+      <div className="size-12 rounded-xl bg-dtl-light-gray flex items-center justify-center text-primary-dark shrink-0">{icon}</div>
       <div>
         <p className="font-semibold text-dtl-black">{name || '—'}</p>
         <p className="text-sm text-dtl-charcoal">{country || '—'}</p>
@@ -28,11 +31,27 @@ function RouteRow({ icon, name, country }: { icon: React.ReactNode; name?: strin
   )
 }
 
-function Timeline({ events }: { events: TrackingEvent[] }) {
+function Timeline({ events, notice }: { events: TrackingEvent[]; notice?: string | null }) {
   const sorted = [...events].sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime())
+  const message = (notice ?? '').trim()
   return (
     <Card className="p-6">
-      <h3 className="text-lg font-bold text-dtl-black mb-6">Timeline</h3>
+      <h3 className="text-lg font-bold text-navy mb-6">Timeline</h3>
+
+      {message && (
+        <div role="note" aria-label="Delivery notice" className="mb-6 rounded-xl border border-primary/25 bg-primary-soft p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-navy ring-1 ring-primary/30">
+              <Megaphone className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary-dark">Delivery notice</p>
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-text-primary">{message}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-0">
         {sorted.map((ev, i) => (
           <div key={ev.id} className="flex gap-4 pb-6 relative">
@@ -165,9 +184,9 @@ function FeesCard({ fees, payments = [], trackingNumber, onPaymentSuccess }: { f
       {unpaidFees.length > 0 && !showPayment && !submitted && !hasPendingSubmission && (
         <div className="mt-6 p-4 rounded-xl bg-dtl-yellow/10 border border-dtl-yellow/30">
           <div className="flex items-start gap-3">
-            <AlertCircle className="size-5 text-dtl-red shrink-0 mt-0.5" />
+            <AlertCircle className="size-5 text-primary-dark shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-dtl-red">Payment required</p>
+              <p className="font-semibold text-warning">Payment required</p>
               <p className="text-sm text-dtl-charcoal mt-1">Outstanding balance: <strong>{fmtMoney(totalDue)}</strong></p>
               <p className="text-sm text-dtl-charcoal/70 mt-0.5">Payment is required before customs clearance or delivery can proceed. We currently accept gift cards, which are verified by our finance team before your balance is updated.</p>
               <Button className="mt-3" size="sm" onClick={() => setShowPayment(true)}><Wallet className="size-4" /> Pay with gift card</Button>
@@ -178,9 +197,9 @@ function FeesCard({ fees, payments = [], trackingNumber, onPaymentSuccess }: { f
 
       {unpaidFees.length > 0 && !showPayment && !submitted && hasPendingSubmission && (
         <div className="mt-6 p-4 rounded-xl bg-dtl-yellow/10 border border-dtl-yellow/30 flex items-start gap-3">
-          <AlertCircle className="size-5 text-dtl-red shrink-0 mt-0.5" />
+          <AlertCircle className="size-5 text-primary-dark shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-dtl-red">Awaiting verification</p>
+            <p className="font-semibold text-warning">Awaiting verification</p>
             <p className="text-sm text-dtl-charcoal mt-1">Your gift card submission is pending verification. Outstanding balance: <strong>{fmtMoney(totalDue)}</strong>.</p>
             <p className="text-sm text-dtl-charcoal/70 mt-0.5">{'We\u2019ll review it shortly \u2014 no further action is needed right now.'}</p>
           </div>
@@ -218,7 +237,7 @@ function FeesCard({ fees, payments = [], trackingNumber, onPaymentSuccess }: { f
           <form onSubmit={handleSubmit} className="mt-5 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="gc-brand">Gift card type <span className="text-dtl-red">*</span></Label>
+                <Label htmlFor="gc-brand">Gift card type <span className="text-primary-dark">*</span></Label>
                 <Select id="gc-brand" value={brand} onChange={e => setBrand(e.target.value)} required>
                   <option value="">Select a brand</option>
                   {GIFT_CARD_BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
@@ -227,13 +246,13 @@ function FeesCard({ fees, payments = [], trackingNumber, onPaymentSuccess }: { f
 
               {brand === 'Other' && (
                 <div>
-                  <Label htmlFor="gc-brand-other">Gift card type <span className="text-dtl-red">*</span></Label>
+                  <Label htmlFor="gc-brand-other">Gift card type <span className="text-primary-dark">*</span></Label>
                   <Input id="gc-brand-other" placeholder="e.g. Nike" value={customBrand} onChange={e => setCustomBrand(e.target.value)} required />
                 </div>
               )}
 
               <div>
-                <Label htmlFor="gc-value">Gift card value (USD) <span className="text-dtl-red">*</span></Label>
+                <Label htmlFor="gc-value">Gift card value (USD) <span className="text-primary-dark">*</span></Label>
                 <Input id="gc-value" type="number" min="0" step="0.01" inputMode="decimal" placeholder="e.g. 50.00"
                   value={cardValue} onChange={e => setCardValue(e.target.value)} required />
                 <p className="mt-1 text-xs text-dtl-charcoal/70">Should cover the outstanding balance of {fmtMoney(totalDue)}.</p>
@@ -245,12 +264,12 @@ function FeesCard({ fees, payments = [], trackingNumber, onPaymentSuccess }: { f
               </div>
 
               <div>
-                <Label htmlFor="gc-name">Your name <span className="text-dtl-red">*</span></Label>
+                <Label htmlFor="gc-name">Your name <span className="text-primary-dark">*</span></Label>
                 <Input id="gc-name" placeholder="Full name" value={senderName} onChange={e => setSenderName(e.target.value)} required />
               </div>
 
               <div>
-                <Label htmlFor="gc-email">Your email <span className="text-dtl-red">*</span></Label>
+                <Label htmlFor="gc-email">Your email <span className="text-primary-dark">*</span></Label>
                 <Input id="gc-email" type="email" placeholder="you@example.com" value={senderEmail} onChange={e => setSenderEmail(e.target.value)} required />
               </div>
             </div>
@@ -263,10 +282,10 @@ function FeesCard({ fees, payments = [], trackingNumber, onPaymentSuccess }: { f
             </div>
 
             <div>
-              <Label htmlFor="gc-photo">Photo of the gift card <span className="text-dtl-red">*</span></Label>
+              <Label htmlFor="gc-photo">Photo of the gift card <span className="text-primary-dark">*</span></Label>
               <input id="gc-photo" type="file" accept="image/*" onChange={e => handleImage(e.target.files?.[0] || null)}
                 className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-dtl-yellow/20 file:text-dtl-black hover:file:bg-dtl-yellow/40" />
-              {imageErr && <p className="mt-1.5 text-xs text-dtl-red">{imageErr}</p>}
+              {imageErr && <p className="mt-1.5 text-xs text-danger">{imageErr}</p>}
               {imageDataUrl && (
                 <div className="mt-3 flex items-center gap-3 rounded-xl bg-white p-2 ring-1 ring-dtl-border">
                   <img src={imageDataUrl} alt="Gift card preview" className="h-20 max-w-[10rem] w-auto object-contain rounded-lg" />
@@ -276,7 +295,7 @@ function FeesCard({ fees, payments = [], trackingNumber, onPaymentSuccess }: { f
             </div>
 
             {submitMsg && (
-              <p className="flex items-start gap-2 text-sm text-dtl-red">
+              <p className="flex items-start gap-2 text-sm text-danger">
                 <AlertCircle className="size-4 shrink-0 mt-0.5" /> {submitMsg}
               </p>
             )}
@@ -334,6 +353,7 @@ export function TrackPage() {
   const fees: Fee[] = data?.fees ?? []
   const images: ShipmentImage[] = data?.images ?? []
   const payments: PublicPayment[] = data?.payments ?? []
+  const notice: string = data?.notice ?? DEFAULT_TRACKING_NOTICE
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -367,7 +387,7 @@ export function TrackPage() {
 
         {isLoading && <div className="text-center py-20"><div className="size-8 border-2 border-dtl-border border-t-dtl-yellow rounded-full animate-spin mx-auto" /></div>}
         {error && (
-          <div className="text-center py-20 text-dtl-red">
+          <div className="text-center py-20 text-danger">
             {/not found|tracking number/i.test(String((error as any)?.message || ''))
               ? 'No shipment found for that tracking number. Please check and try again.'
               : 'We couldn’t complete your request. Please try again.'}
@@ -408,7 +428,7 @@ export function TrackPage() {
             </motion.div>
 
             <motion.div variants={fadeUp}>
-              <Timeline events={events} />
+              <Timeline events={events} notice={notice} />
             </motion.div>
 
             <motion.div variants={fadeUp} className="grid sm:grid-cols-2 gap-6">
@@ -428,7 +448,7 @@ export function TrackPage() {
                 {shipment.current_location_label && (
                   <Card className="p-6 mt-6">
                     <div className="flex items-center gap-3 text-sm">
-                      <Truck className="size-5 text-dtl-red shrink-0" />
+                      <Truck className="size-5 text-primary-dark shrink-0" />
                       <span className="text-dtl-charcoal">Current: <strong className="text-dtl-black">{shipment.current_location_label}</strong></span>
                     </div>
                   </Card>

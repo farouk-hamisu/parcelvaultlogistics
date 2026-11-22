@@ -1,5 +1,5 @@
 -- ============================================================
--- DiamondThriveLogistics — initial schema
+-- ParcelVault Logistics — initial schema
 -- Profiles (RBAC), shipments, tracking events, fees, payments,
 -- notifications, content (gallery/testimonials/services), settings
 -- ============================================================
@@ -227,7 +227,7 @@ create table if not exists public.brand_partners (
 
 create table if not exists public.site_settings (
   id int primary key default 1,
-  site_name text not null default 'DiamondThriveLogistics',
+  site_name text not null default 'ParcelVault Logistics',
   tagline text,
   hero_headline text,
   hero_subheadline text,
@@ -248,6 +248,7 @@ create table if not exists public.site_settings (
   ach_routing_number text,
   ach_account_type text,
   ach_bank_address text,
+  tracking_notice text not null default 'Please contact your dispatch desk if any holds have been placed on your package for delivery purposes.',
   seo_title text,
   seo_description text,
   seo_keywords text,

@@ -16,6 +16,8 @@ const envOrigins = (process.env.CLIENT_ORIGIN || '')
   .filter(Boolean)
 
 const allowedOrigins = new Set([
+  'https://parcelvaultlogistics.vercel.app',
+  'https://www.parcelvaultlogistics.vercel.app',
   'https://diamondthrivelogisticss.vercel.app',
   'https://www.diamondthrivelogisticss.vercel.app',
   'http://localhost:5173',
@@ -31,7 +33,8 @@ function isAllowedOrigin(origin) {
   if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true
   // Vercel preview deployments of this project
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return true
-  // production domain, with or without a subdomain (www, staging, ...)
+  // production domains, with or without a subdomain (www, staging, ...)
+  if (/^https:\/\/([a-z0-9-]+\.)*parcelvaultlogistics\.com$/.test(origin)) return true
   if (/^https:\/\/([a-z0-9-]+\.)*diamondthrivelogistics\.com$/.test(origin)) return true
   return false
 }
@@ -69,4 +72,4 @@ app.use((err, _req, res, _next) => {
 })
 
 const port = Number(process.env.PORT || 8787)
-app.listen(port, () => console.log(`DiamondThriveLogistics API on :${port}`))
+app.listen(port, () => console.log(`ParcelVault Logistics API on :${port}`))

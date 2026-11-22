@@ -17,7 +17,7 @@ export function WhyChoose() {
     <section className="bg-white py-28">
       <div className="mx-auto max-w-[1320px] px-6">
         <div className="text-center max-w-2xl mx-auto">
-          <SectionLabel className="mx-auto">Why DTL</SectionLabel>
+          <SectionLabel className="mx-auto">Why ParcelVault</SectionLabel>
           <h2 className="mt-4 text-4xl lg:text-[3rem] font-bold text-dtl-black leading-[1.08] text-balance">
             Built for shippers who treat freight like craft.
           </h2>

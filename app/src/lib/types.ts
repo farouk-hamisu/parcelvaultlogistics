@@ -194,6 +194,7 @@ export type SiteSettings = {
   ach_routing_number?: string | null
   ach_account_type?: string | null
   ach_bank_address?: string | null
+  tracking_notice?: string | null
   seo_title?: string | null
   seo_description?: string | null
   seo_keywords?: string | null

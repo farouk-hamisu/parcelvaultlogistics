@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 
-const base = 'https://mydtl.onrender.com/api'
+const base =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? '/api' : 'https://mydtl.onrender.com/api')
 
 type FetchInit = RequestInit & { auth?: boolean; raw?: boolean }
 

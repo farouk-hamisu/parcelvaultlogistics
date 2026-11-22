@@ -49,7 +49,7 @@ export function Newsletter() {
               />
               <Button
                 type="submit" disabled={status === 'sending'}
-                className="rounded-[0] sm:rounded-none bg-dtl-red px-5 py-4 sm:py-0 text-white hover:bg-[#b8040e] transition flex items-center justify-center gap-2 font-semibold text-sm"
+                className="rounded-[0] sm:rounded-none bg-primary px-5 py-4 sm:py-0 text-navy hover:bg-[#0898A0] transition flex items-center justify-center gap-2 font-semibold text-sm"
               >
                 Subscribe <ArrowRight className="size-4" />
               </Button>

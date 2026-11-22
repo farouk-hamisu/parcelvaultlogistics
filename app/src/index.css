@@ -1,22 +1,52 @@
 @import "tailwindcss";
 
+/* ParcelVault Logistics brand palette */
+:root {
+  --primary: #05A3AA;
+  --primary-dark: #06718A;
+  --navy: #052D4B;
+  --ocean-blue: #0C4863;
+
+  --background: #FAFBFC;
+  --surface: #FFFFFF;
+  --border: #CAD5D9;
+
+  --text-primary: #2E2B2D;
+  --text-secondary: #658297;
+}
+
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
-  --color-dtl-yellow: #FFCC00;
-  --color-dtl-red: #D40511;
-  --color-dtl-black: #111111;
-  --color-dtl-charcoal: #242424;
-  --color-dtl-white: #FFFFFF;
-  --color-dtl-light-gray: #F5F5F5;
-  --color-dtl-border: #E2E2E2;
+  --color-primary: #05A3AA;
+  --color-primary-dark: #06718A;
+  --color-primary-light: #7FD7DB;
+  --color-primary-soft: #E7F7F8;
+  --color-navy: #052D4B;
+  --color-ocean-blue: #0C4863;
+  --color-background: #FAFBFC;
+  --color-surface: #FFFFFF;
+  --color-border: #CAD5D9;
+  --color-text-primary: #2E2B2D;
+  --color-text-secondary: #658297;
 
-  --color-success: #059669;
-  --color-success-bg: #ECFDF5;
-  --color-warning: #FFCC00;
-  --color-warning-bg: #FEF9C3;
-  --color-error: #D40511;
-  --color-error-bg: #FEF2F2;
+  /* Backwards-compatible aliases used by the existing UI. */
+  --color-dtl-yellow: #05A3AA;
+  --color-dtl-red: #06718A;
+  --color-dtl-black: #052D4B;
+  --color-dtl-charcoal: #0C4863;
+  --color-dtl-white: #FFFFFF;
+  --color-dtl-light-gray: #FAFBFC;
+  --color-dtl-border: #CAD5D9;
+
+  --color-success: #067647;
+  --color-success-bg: #ECFDF3;
+  --color-warning: #B54708;
+  --color-warning-bg: #FFFAEB;
+  --color-danger: #B42318;
+  --color-danger-bg: #FEF3F2;
+  --color-error: #B42318;
+  --color-error-bg: #FEF3F2;
 
   --radius-card: 1rem;
   --radius-pill: 999px;
@@ -25,15 +55,15 @@
 html { scroll-behavior: smooth; }
 body {
   font-family: var(--font-sans);
-  color: var(--color-dtl-black);
-  background: var(--color-dtl-white);
+  color: var(--color-text-primary);
+  background: var(--color-background);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 * { -webkit-tap-highlight-color: transparent; }
 
-::selection { background: var(--color-dtl-yellow); color: var(--color-dtl-black); }
+::selection { background: var(--color-primary-light); color: var(--color-navy); }
 
 .leaflet-container { font-family: var(--font-sans) !important; }
 

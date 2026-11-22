@@ -7,7 +7,7 @@ import { initials } from '../lib/utils'
 export function Testimonials() {
   const { testimonials } = useSiteSettings()
   const items = testimonials.length ? testimonials : [
-    { id: '1', author: 'Marcus Holloway', role: 'Head of Procurement', company: 'NorthBrew Imports', avatar_url: null, quote: 'DTL moved our cold-chain containers across three borders with full visibility. The live map alone won them a permanent place on our vendor list.', rating: 5 },
+    { id: '1', author: 'Marcus Holloway', role: 'Head of Procurement', company: 'NorthBrew Imports', avatar_url: null, quote: 'ParcelVault moved our cold-chain containers across three borders with full visibility. The live map alone won them a permanent place on our vendor list.', rating: 5 },
     { id: '2', author: 'Adaeze Okeke', role: 'Logistics Director', company: 'Sahara Distributors', avatar_url: null, quote: 'They cleared customs faster than any partner we have used, and the dashboard made our finance team happy.', rating: 5 },
     { id: '3', author: 'Tomás Reyes', role: 'Founder', company: 'Reyes Textiles', avatar_url: null, quote: 'I could see exactly where my container was at all times. The payment flow for duties turned a usually painful process into a few clicks.', rating: 5 },
   ] as any
@@ -19,7 +19,7 @@ export function Testimonials() {
       <div className="relative mx-auto max-w-[1320px] px-6">
         <div className="text-center max-w-2xl mx-auto">
           <SectionLabel className="mx-auto">Client voices</SectionLabel>
-          <h2 className="mt-4 text-4xl lg:text-[3rem] font-bold leading-[1.08] text-balance">Shipping teams that switched to DTL.</h2>
+          <h2 className="mt-4 text-4xl lg:text-[3rem] font-bold leading-[1.08] text-balance">Shipping teams that switched to ParcelVault.</h2>
         </div>
 
         <motion.div variants={staggerParent} initial="hidden" whileInView="show" viewport={viewport}

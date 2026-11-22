@@ -6,8 +6,9 @@ import { Card, Button, StatusBadge, Spinner, EmptyState, Pill, Input, Textarea, 
 import { useAuth } from '../../hooks/useAuth'
 import {
   LayoutDashboard, Package, Wallet, FileText, Image as ImageIcon, Settings, LogOut, Plus, Trash2, ChevronRight,
-  MapPin, Calendar, Truck, AlertCircle, CheckCircle2, Clock, X, Edit3, Save, Search, Upload, ExternalLink, Globe,
+  MapPin, Calendar, Truck, AlertCircle, CheckCircle2, Clock, X, Edit3, Save, Search, Upload, ExternalLink, Globe, Megaphone,
 } from 'lucide-react'
+import { LogoMark } from '../../components/layout/header'
 import { fmtDate, fmtDateTime, fmtMoney, statusLabel, initials, fileToDataUrl, paymentStatusLabel, paymentMethodLabel } from '../../lib/utils'
 import { LiveMap } from '../../components/tracking/live-map'
 import type { Shipment, TrackingEvent, Fee, ShipmentImage, Profile, Payment, Service, Testimonial, GalleryItem, BrandPartner, SiteSettings } from '../../lib/types'
@@ -17,6 +18,7 @@ const sidebarLinks = [
   { to: '/admin/shipments', icon: Package, label: 'Shipments' },
   { to: '/admin/payments', icon: Wallet, label: 'Payments' },
   { to: '/admin/content', icon: FileText, label: 'Content' },
+  { to: '/admin/notice', icon: Megaphone, label: 'Delivery notice' },
   { to: '/admin/media', icon: ImageIcon, label: 'Media' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ]
@@ -199,11 +201,11 @@ export function AdminLayout() {
   if (loading || !profile || !['admin', 'manager', 'staff'].includes(profile.role)) return null
 
   return (
-    <div className="min-h-screen bg-dtl-light-gray flex">
-      <aside className="w-64 shrink-0 bg-dtl-charcoal text-white hidden lg:flex flex-col">
+    <div className="min-h-screen bg-background flex">
+      <aside className="w-64 shrink-0 bg-navy text-white hidden lg:flex flex-col">
         <div className="p-6 border-b border-white/10">
-          <Link to="/admin" className="flex items-center gap-2 text-xl font-bold tracking-tight"><img src="/logo.png" alt="DTL" className="h-10 w-auto rounded-lg" /> Admin</Link>
-          <p className="text-xs text-white/40 mt-1.5">Admin Panel</p>
+          <Link to="/admin" className="flex items-center gap-2 text-xl font-bold tracking-tight"><LogoMark onDark /> <span className="text-sm text-white/70">Admin</span></Link>
+          <p className="text-xs text-white/40 mt-2">Operations panel</p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
           {sidebarLinks.map(link => {
@@ -211,7 +213,7 @@ export function AdminLayout() {
             return (
               <Link key={link.to} to={link.to}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                  active ? 'bg-dtl-yellow/15 text-dtl-yellow' : 'text-white/60 hover:text-white hover:bg-white/5'
+                  active ? 'bg-primary/20 text-primary-light ring-1 ring-primary/30' : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}>
                 <link.icon className="size-4" /> {link.label}
               </Link>
@@ -220,7 +222,7 @@ export function AdminLayout() {
         </nav>
         <div className="p-4 border-t border-white/10">
           <div className="flex items-center gap-3 px-2 mb-3">
-            <div className="size-8 rounded-full bg-dtl-yellow flex items-center justify-center text-xs font-bold text-dtl-black">{initials(profile?.full_name || profile?.email)}</div>
+            <div className="size-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-navy">{initials(profile?.full_name || profile?.email)}</div>
             <div className="text-sm truncate"><p className="font-semibold truncate">{profile?.full_name || 'Admin'}</p><p className="text-white/50 text-xs truncate">{profile?.email}</p></div>
           </div>
           <button onClick={handleSignOut} className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white/60 hover:text-white hover:bg-white/5 transition-colors">
@@ -229,20 +231,20 @@ export function AdminLayout() {
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-dtl-border">
-          <Link to="/admin" className="flex items-center gap-2 text-lg font-bold text-dtl-black"><img src="/logo.png" alt="DTL" className="h-9 w-auto rounded-lg" /> Admin</Link>
+        <div className="lg:hidden flex items-center justify-between p-4 bg-surface border-b border-border">
+          <Link to="/admin" className="flex items-center gap-2 text-lg font-bold text-navy"><LogoMark /> <span className="text-xs font-semibold text-text-secondary">Admin</span></Link>
           <div className="flex items-center gap-2">
-            <div className="size-8 rounded-full bg-dtl-yellow flex items-center justify-center text-xs font-bold text-dtl-black">{initials(profile?.full_name || profile?.email)}</div>
-            <button onClick={handleSignOut} className="text-dtl-charcoal hover:text-dtl-red"><LogOut className="size-5" /></button>
+            <div className="size-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-navy">{initials(profile?.full_name || profile?.email)}</div>
+            <button aria-label="Sign out" onClick={handleSignOut} className="text-ocean-blue hover:text-danger"><LogOut className="size-5" /></button>
           </div>
         </div>
-        <div className="lg:hidden flex overflow-x-auto gap-1 p-2 bg-white border-b border-dtl-border">
+        <div className="lg:hidden flex overflow-x-auto gap-1 p-2 bg-surface border-b border-border">
           {sidebarLinks.map(link => {
             const active = link.to === '/admin' ? location.pathname === '/admin' : location.pathname.startsWith(link.to)
             return (
               <Link key={link.to} to={link.to}
                 className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                  active ? 'bg-dtl-yellow text-dtl-black' : 'text-dtl-charcoal hover:bg-dtl-light-gray'
+                  active ? 'bg-primary text-navy' : 'text-ocean-blue hover:bg-background'
                 }`}>
                 <link.icon className="size-3.5" /> {link.label}
               </Link>
@@ -272,8 +274,8 @@ export function AdminOverview() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="p-6"><p className="text-sm text-dtl-charcoal font-semibold">Total shipments</p><p className="text-3xl font-bold text-dtl-black mt-1">{stats.totals?.shipments ?? 0}</p></Card>
-            <Card className="p-6"><p className="text-sm text-dtl-charcoal font-semibold">Pending payments</p><p className="text-3xl font-bold text-dtl-red mt-1">{stats.totals?.pendingPayments ?? 0}</p></Card>
-            <Card className="p-6"><p className="text-sm text-dtl-charcoal font-semibold">Outstanding fees</p><p className="text-3xl font-bold text-dtl-red mt-1">{stats.outstandingFees ? fmtMoney(stats.outstandingFees) : '$0'}</p></Card>
+            <Card className="p-6"><p className="text-sm text-dtl-charcoal font-semibold">Pending payments</p><p className="text-3xl font-bold text-danger mt-1">{stats.totals?.pendingPayments ?? 0}</p></Card>
+            <Card className="p-6"><p className="text-sm text-dtl-charcoal font-semibold">Outstanding fees</p><p className="text-3xl font-bold text-danger mt-1">{stats.outstandingFees ? fmtMoney(stats.outstandingFees) : '$0'}</p></Card>
             <Card className="p-6"><p className="text-sm text-dtl-charcoal font-semibold">Revenue</p><p className="text-3xl font-bold text-emerald-600 mt-1">{stats.totalRevenue ? fmtMoney(stats.totalRevenue) : '$0'}</p></Card>
           </div>
           {stats.statusCounts && (
@@ -371,14 +373,14 @@ export function AdminShipments() {
             <div className="sm:col-span-2 lg:col-span-3">
               <label className="block text-xs font-semibold text-dtl-charcoal mb-2">Shipment images (optional)</label>
               <input multiple type="file" accept="image/*" onChange={handleCreateImageSelect}
-                className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-dtl-yellow/10 file:text-dtl-red hover:file:bg-dtl-yellow/20" />
+                className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary-dark hover:file:bg-primary/20" />
               {createImagePreviews.length > 0 && (
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 mt-3">
                   {createImagePreviews.map((preview, i) => (
                     <div key={i} className="relative rounded-lg overflow-hidden ring-1 ring-dtl-border">
                       <img src={preview} alt="" className="w-full h-20 object-cover" />
                       <button type="button" onClick={() => removeCreateImage(i)}
-                        className="absolute top-1 right-1 size-6 rounded-full bg-white/90 flex items-center justify-center text-dtl-red shadow hover:bg-white">
+                        className="absolute top-1 right-1 size-6 rounded-full bg-white/90 flex items-center justify-center text-danger shadow hover:bg-white">
                         <X className="size-3" />
                       </button>
                     </div>
@@ -388,7 +390,7 @@ export function AdminShipments() {
             </div>
 
             {createMut.isError && (
-              <p className="sm:col-span-2 lg:col-span-3 text-sm text-dtl-red">{(createMut.error as any)?.message}</p>
+              <p className="sm:col-span-2 lg:col-span-3 text-sm text-danger">{(createMut.error as any)?.message}</p>
             )}
 
             <div className="flex gap-2">
@@ -400,9 +402,9 @@ export function AdminShipments() {
       )}
 
       {isLoading && <Spinner />}
-      {error && <p className="text-dtl-red">{(error as any).message}</p>}
+      {error && <p className="text-danger">{(error as any).message}</p>}
       {deleteMut.isError && (
-        <p className="text-dtl-red text-sm mb-4">{(deleteMut.error as any)?.message}</p>
+        <p className="text-danger text-sm mb-4">{(deleteMut.error as any)?.message}</p>
       )}
       {!isLoading && !error && shipments.length === 0 && <EmptyState title="No shipments" />}
       {shipments.length > 0 && (
@@ -439,7 +441,7 @@ export function AdminShipments() {
                           if (!window.confirm(`Permanently delete shipment ${s.tracking_number}? This removes all tracking events, fees, payments, and images and cannot be undone.`)) return
                           deleteMut.mutate(s.id)
                         }}
-                        className="text-dtl-charcoal/50 hover:text-dtl-red transition-colors disabled:opacity-40"
+                        className="text-dtl-charcoal/50 hover:text-danger transition-colors disabled:opacity-40"
                       >
                         <Trash2 className="size-4" />
                       </button>
@@ -545,7 +547,7 @@ export function AdminShipment() {
   })
 
   if (isLoading) return <Spinner />
-  if (error) return <p className="text-dtl-red">{(error as any).message}</p>
+  if (error) return <p className="text-danger">{(error as any).message}</p>
   if (!data) return <p className="text-dtl-charcoal">Not found.</p>
 
   const shipment: Shipment = data.shipment || data
@@ -590,7 +592,7 @@ export function AdminShipment() {
         <Button variant="outline" onClick={() => { setEditingShipment(!editingShipment); setShipmentForm(shipment) }}>
           <Edit3 className="size-4" /> {editingShipment ? 'Cancel' : 'Edit'}
         </Button>
-        <Button variant="outline" className="text-dtl-red border-dtl-red/40 hover:bg-dtl-red/5"
+        <Button variant="outline" className="text-danger border-danger/40 hover:bg-danger/5"
           onClick={() => confirmDeleteShipment(shipment.tracking_number)}
           disabled={deleteShipmentMut.isPending}>
           <Trash2 className="size-4" /> {deleteShipmentMut.isPending ? 'Deleting…' : 'Delete'}
@@ -598,7 +600,7 @@ export function AdminShipment() {
       </div>
 
       {deleteShipmentMut.isError && (
-        <p className="text-sm text-dtl-red">{(deleteShipmentMut.error as any)?.message}</p>
+        <p className="text-sm text-danger">{(deleteShipmentMut.error as any)?.message}</p>
       )}
 
       {editingShipment && (
@@ -608,7 +610,7 @@ export function AdminShipment() {
             <ShipmentFields value={shipmentForm} onChange={setShip} includeTracking />
 
             {updateShipmentMut.isError && (
-              <p className="sm:col-span-2 lg:col-span-3 text-sm text-dtl-red">{(updateShipmentMut.error as any)?.message}</p>
+              <p className="sm:col-span-2 lg:col-span-3 text-sm text-danger">{(updateShipmentMut.error as any)?.message}</p>
             )}
 
             <div className="sm:col-span-2 lg:col-span-3 flex gap-2">
@@ -651,7 +653,7 @@ export function AdminShipment() {
               {ev.note && <p className="text-sm text-dtl-charcoal">{ev.note}</p>}
               <p className="text-xs text-dtl-charcoal/50">{fmtDateTime(ev.occurred_at)}</p>
             </div>
-            <button onClick={() => delEventMut.mutate(ev.id)} className="text-dtl-charcoal/50 hover:text-dtl-red transition-colors p-1"><Trash2 className="size-4" /></button>
+            <button onClick={() => delEventMut.mutate(ev.id)} className="text-dtl-charcoal/50 hover:text-danger transition-colors p-1"><Trash2 className="size-4" /></button>
           </div>
         ))}
         {sortedEvents.length === 0 && <p className="text-sm text-dtl-charcoal mb-4">No events yet.</p>}
@@ -689,7 +691,7 @@ export function AdminShipment() {
             <div className="flex items-center gap-3">
               <span className="font-semibold text-dtl-black">{fmtMoney(fee.amount, fee.currency)}</span>
               <StatusBadge status={fee.status} />
-              <button onClick={() => delFeeMut.mutate(fee.id)} className="text-dtl-charcoal/50 hover:text-dtl-red"><Trash2 className="size-4" /></button>
+              <button onClick={() => delFeeMut.mutate(fee.id)} className="text-dtl-charcoal/50 hover:text-danger"><Trash2 className="size-4" /></button>
             </div>
           </div>
         ))}
@@ -730,7 +732,7 @@ export function AdminShipment() {
               <img src={img.url} alt={img.caption || ''} className="w-full h-28 object-cover" />
               {img.caption && <p className="text-xs text-dtl-charcoal p-2 bg-white">{img.caption}</p>}
               <button onClick={() => delImgMut.mutate(img.id)}
-                className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-dtl-red opacity-0 group-hover:opacity-100 transition shadow">
+                className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-danger opacity-0 group-hover:opacity-100 transition shadow">
                 <Trash2 className="size-3.5" />
               </button>
             </div>
@@ -743,7 +745,7 @@ export function AdminShipment() {
               <div key={i} className="relative rounded-xl overflow-hidden ring-1 ring-dtl-border">
                 <img src={preview} alt="" className="w-full h-28 object-cover" />
                 <button onClick={() => removeSelectedImage(i)}
-                  className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-dtl-red shadow">
+                  className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-danger shadow">
                   <X className="size-3.5" />
                 </button>
               </div>
@@ -756,7 +758,7 @@ export function AdminShipment() {
           <div className="flex-1 min-w-[200px]">
             <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Upload images</label>
             <input multiple type="file" accept="image/*" onChange={handleImageSelect}
-              className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-dtl-yellow/10 file:text-dtl-red hover:file:bg-dtl-yellow/20" />
+              className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary-dark hover:file:bg-primary/20" />
           </div>
           <input placeholder="Caption" value={imageCaption} onChange={(e: any) => setImageCaption(e.target.value)}
             className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
@@ -799,7 +801,7 @@ export function AdminPayments() {
     <div>
       <h1 className="text-2xl font-bold text-dtl-black mb-8">Payments</h1>
       {isLoading && <Spinner />}
-      {error && <p className="text-dtl-red">{(error as any).message}</p>}
+      {error && <p className="text-danger">{(error as any).message}</p>}
       {!isLoading && !error && payments.length === 0 && <EmptyState title="No payments" />}
       {payments.length > 0 && (
         <div className="overflow-x-auto rounded-card ring-1 ring-dtl-border">
@@ -824,7 +826,7 @@ export function AdminPayments() {
                   <td className="p-4"><StatusBadge status={p.status} label={paymentStatusLabel(p.status)} /></td>
                   <td className="p-4">
                     {p.receipt_url ? (
-                      <a href={p.receipt_url} target="_blank" rel="noopener noreferrer" className="text-dtl-red hover:text-dtl-red/80 inline-flex items-center gap-1">
+                      <a href={p.receipt_url} target="_blank" rel="noopener noreferrer" className="text-primary-dark hover:text-primary inline-flex items-center gap-1">
                         <ExternalLink className="size-3.5" /> {p.receipt_url.startsWith('data:') ? 'Photo' : 'View'}
                       </a>
                     ) : '—'}
@@ -832,7 +834,7 @@ export function AdminPayments() {
                   <td className="p-4 text-dtl-charcoal text-xs">{fmtDate(p.created_at)}</td>
                   <td className="p-4">
                     <button onClick={() => setSelectedPayment(selectedPayment?.id === p.id ? null : p)}
-                      className="text-sm font-semibold text-dtl-red hover:text-dtl-red/80">
+                      className="text-sm font-semibold text-primary-dark hover:text-primary">
                       {selectedPayment?.id === p.id ? 'Close' : 'Review'}
                     </button>
                   </td>
@@ -871,7 +873,7 @@ export function AdminPayments() {
                     <img src={selectedPayment.receipt_url} alt="Gift card" className="max-h-56 w-auto max-w-full rounded-xl ring-1 ring-dtl-border object-contain" />
                   </a>
                 ) : (
-                  <a href={selectedPayment.receipt_url} target="_blank" rel="noopener noreferrer" className="text-dtl-red hover:text-dtl-red/80 inline-flex items-center gap-1"><ExternalLink className="size-3.5" /> View receipt</a>
+                  <a href={selectedPayment.receipt_url} target="_blank" rel="noopener noreferrer" className="text-primary-dark hover:text-primary inline-flex items-center gap-1"><ExternalLink className="size-3.5" /> View receipt</a>
                 )}
               </div>
             )}
@@ -1018,7 +1020,7 @@ export function AdminContent() {
                   <button onClick={() => { setEditingId(item.id); setEditForm(item) }}
                     className="size-8 rounded-full bg-dtl-light-gray flex items-center justify-center text-dtl-charcoal/50 hover:text-dtl-black"><Edit3 className="size-4" /></button>
                   <button onClick={() => deleteMut.mutate(item.id)}
-                    className="size-8 rounded-full bg-dtl-light-gray flex items-center justify-center text-dtl-charcoal/50 hover:text-dtl-red"><Trash2 className="size-4" /></button>
+                    className="size-8 rounded-full bg-dtl-light-gray flex items-center justify-center text-dtl-charcoal/50 hover:text-danger"><Trash2 className="size-4" /></button>
                 </div>
               </div>
             )}
@@ -1096,7 +1098,7 @@ export function AdminMedia() {
         <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); uploadMut.mutate() }} className="flex gap-3 items-end">
           <div className="flex-1">
             <input required type="file" onChange={(e: any) => setUploadFile(e.target.files?.[0] || null)}
-              className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-dtl-yellow/10 file:text-dtl-red hover:file:bg-dtl-yellow/20" />
+              className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary-dark hover:file:bg-primary/20" />
           </div>
           <Button type="submit" size="sm" disabled={uploadMut.isPending || !uploadFile}><Upload className="size-4" /> Upload</Button>
         </form>
@@ -1120,7 +1122,7 @@ export function AdminMedia() {
                   <p className="text-xs text-dtl-charcoal truncate">{file.name}</p>
                 </div>
                 <button onClick={() => deleteMut.mutate(file.name)}
-                  className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-dtl-red opacity-0 group-hover:opacity-100 transition shadow">
+                  className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-danger opacity-0 group-hover:opacity-100 transition shadow">
                   <Trash2 className="size-3.5" />
                 </button>
               </div>
@@ -1128,6 +1130,148 @@ export function AdminMedia() {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+const DEFAULT_TRACKING_NOTICE =
+  'Please contact your dispatch desk if any holds have been placed on your package for delivery purposes.'
+
+export function AdminNotice() {
+  const queryClient = useQueryClient()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['admin-settings'],
+    queryFn: () => ContentApi.getSettings(),
+  })
+
+  const settings = (data as any)?.settings as SiteSettings | undefined
+  const [notice, setNotice] = useState('')
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+
+  useEffect(() => {
+    if (settings) setNotice(settings.tracking_notice ?? DEFAULT_TRACKING_NOTICE)
+  }, [settings])
+
+  const saveMut = useMutation({
+    mutationFn: (value: string) => ContentApi.patchSettings({ tracking_notice: value }),
+    onSuccess: () => {
+      setFeedback({ kind: 'success', text: 'Delivery notice saved. Customers will see the updated message on their tracking timeline.' })
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['track'] })
+      queryClient.invalidateQueries({ queryKey: ['public-site-settings'] })
+    },
+    onError: (err: any) => {
+      setFeedback({ kind: 'error', text: err?.message || 'We could not save the delivery notice. Please try again.' })
+    },
+  })
+
+  const savedNotice = settings?.tracking_notice ?? DEFAULT_TRACKING_NOTICE
+  const dirty = notice !== savedNotice
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const value = notice.trim()
+    if (!value) {
+      setFeedback({ kind: 'error', text: 'Please enter a notice message before saving.' })
+      return
+    }
+    setFeedback(null)
+    setNotice(value)
+    saveMut.mutate(value)
+  }
+
+  return (
+    <div className="max-w-3xl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-navy">Delivery Notice</h1>
+        <p className="mt-2 text-sm text-text-secondary">
+          This message appears inside the shipment tracking timeline for every customer. Changes are saved to the
+          database and go live immediately — no redeploy required.
+        </p>
+      </div>
+
+      {isLoading && <Spinner />}
+      {error && (
+        <div className="mb-6 rounded-card border border-danger/20 bg-danger-bg p-4 text-sm text-danger">
+          {(error as any)?.message || 'We could not load the current delivery notice.'}
+        </div>
+      )}
+
+      <Card className="p-6 sm:p-8">
+        <div className="mb-5 flex items-start gap-3 rounded-xl bg-primary-soft p-4 ring-1 ring-primary/20">
+          <Megaphone className="mt-0.5 size-5 shrink-0 text-primary-dark" />
+          <div>
+            <p className="font-semibold text-navy">Tracking timeline notice</p>
+            <p className="mt-1 text-sm text-text-secondary">
+              Keep it clear and brief. Customers see this above their shipment status updates.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="tracking-notice">Notice message</Label>
+            <Textarea
+              id="tracking-notice"
+              rows={6}
+              value={notice}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                setNotice(e.target.value)
+                if (feedback) setFeedback(null)
+              }}
+              placeholder={DEFAULT_TRACKING_NOTICE}
+              className="resize-y"
+            />
+            <div className="mt-1.5 flex items-center justify-between gap-4 text-xs text-text-secondary">
+              <span>Plain text. Line breaks are preserved.</span>
+              <span>{notice.length} characters</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-background p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary-dark">Customer preview</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-text-primary">
+              {notice.trim() || 'No notice will be shown while this field is empty.'}
+            </p>
+          </div>
+
+          {feedback && (
+            <p
+              role={feedback.kind === 'error' ? 'alert' : 'status'}
+              className={`flex items-start gap-2 text-sm ${feedback.kind === 'success' ? 'text-success' : 'text-danger'}`}
+            >
+              {feedback.kind === 'success' ? (
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              ) : (
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              )}
+              {feedback.text}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" disabled={saveMut.isPending || !dirty}>
+              {saveMut.isPending ? (
+                <><Spinner className="size-4" /> Saving…</>
+              ) : (
+                <><Save className="size-4" /> Save notice</>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saveMut.isPending || notice === DEFAULT_TRACKING_NOTICE}
+              onClick={() => {
+                setNotice(DEFAULT_TRACKING_NOTICE)
+                setFeedback(null)
+              }}
+            >
+              Restore default
+            </Button>
+            {dirty && <span className="text-xs font-semibold text-warning">Unsaved changes</span>}
+          </div>
+        </form>
+      </Card>
     </div>
   )
 }
@@ -1140,7 +1284,7 @@ export function AdminSettings() {
     queryFn: () => ContentApi.getSettings(),
   })
 
-  const settings: SiteSettings = data as SiteSettings
+  const settings: SiteSettings = ((data as any)?.settings ?? {}) as SiteSettings
 
   const [form, setForm] = useState<any>({})
   const [message, setMessage] = useState('')
@@ -1199,7 +1343,7 @@ export function AdminSettings() {
                 </div>
               </div>
             </Card>
-            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-dtl-red'}`}>{message}</p>}
+            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-danger'}`}>{message}</p>}
             <Button type="submit" disabled={patchMut.isPending}>{patchMut.isPending ? 'Saving...' : 'Save settings'}</Button>
           </form>
         </Card>
@@ -1229,7 +1373,7 @@ export function AdminSettings() {
               <input value={merged.business_hours ?? ''} onChange={(e: any) => set('business_hours', e.target.value)}
                 className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
             </div>
-            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-dtl-red'}`}>{message}</p>}
+            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-danger'}`}>{message}</p>}
             <Button type="submit" disabled={patchMut.isPending}>{patchMut.isPending ? 'Saving...' : 'Save settings'}</Button>
           </form>
         </Card>
@@ -1278,7 +1422,7 @@ export function AdminSettings() {
                   className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
               </div>
             </div>
-            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-dtl-red'}`}>{message}</p>}
+            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-danger'}`}>{message}</p>}
             <Button type="submit" disabled={patchMut.isPending}>{patchMut.isPending ? 'Saving...' : 'Save settings'}</Button>
           </form>
         </Card>
@@ -1315,7 +1459,7 @@ export function AdminSettings() {
               <input value={merged.social_youtube ?? ''} onChange={(e: any) => set('social_youtube', e.target.value)}
                 className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
             </div>
-            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-dtl-red'}`}>{message}</p>}
+            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-danger'}`}>{message}</p>}
             <Button type="submit" disabled={patchMut.isPending}>{patchMut.isPending ? 'Saving...' : 'Save settings'}</Button>
           </form>
         </Card>

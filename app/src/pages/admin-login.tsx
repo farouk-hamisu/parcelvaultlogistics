@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { Button, Input, Label } from '../components/ui/primitives'
+import { LogoMark } from '../components/layout/header'
 import { useNavigate } from '@tanstack/react-router'
 
 export function AdminLoginPage() {
@@ -26,23 +27,23 @@ export function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center bg-dtl-light-gray px-6 py-20">
-      <div className="w-full max-w-md rounded-card bg-white ring-1 ring-dtl-border shadow-[0_40px_120px_-40px_rgba(0,0,0,0.35)] p-8">
+    <div className="min-h-screen grid place-items-center bg-background px-6 py-20">
+      <div className="w-full max-w-md rounded-card bg-surface ring-1 ring-border shadow-[0_40px_120px_-40px_rgba(5,45,75,0.35)] p-8">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="DiamondThriveLogistics" className="mx-auto h-20 w-auto rounded-lg" />
-          <h1 className="mt-5 text-2xl font-bold text-dtl-black">Admin Login</h1>
-          <p className="mt-1 text-sm text-dtl-charcoal">Sign in to the DiamondThriveLogistics administration panel</p>
+          <LogoMark className="justify-center" />
+          <h1 className="mt-6 text-2xl font-bold text-navy">Admin Login</h1>
+          <p className="mt-1 text-sm text-text-secondary">Sign in to the ParcelVault Logistics administration panel</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <Label>Email</Label>
-            <Input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@diamondthrivelogistics.com" />
+            <Input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@parcelvaultlogistics.com" />
           </div>
           <div>
             <Label>Password</Label>
             <Input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
           </div>
-          {error && <p className="text-sm text-dtl-red">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? 'Signing in...' : 'Sign in'}
           </Button>

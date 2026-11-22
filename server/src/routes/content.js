@@ -77,7 +77,7 @@ router.patch('/settings/site', authUser, requireAdmin, async (req, res, next) =>
       'contact_email','contact_phone','contact_address','business_hours',
       'social_facebook','social_twitter','social_linkedin','social_instagram','social_youtube',
       'usdt_trc20_address','ach_account_holder','ach_bank','ach_account_number','ach_routing_number','ach_account_type','ach_bank_address',
-      'seo_title','seo_description','seo_keywords',
+      'tracking_notice','seo_title','seo_description','seo_keywords',
     ]
     const payload = stripFields(req.body, allowed)
     const { data, error } = await supabaseAdmin.from('site_settings').update(payload).eq('id', 1).select().single()

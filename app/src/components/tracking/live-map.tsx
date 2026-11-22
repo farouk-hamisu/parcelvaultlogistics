@@ -10,13 +10,13 @@ L.Icon.Default.mergeOptions({
 })
 
 const C = {
-  origin: '#111111',
-  destination: '#D40511',
-  current: '#FFCC00',
-  route: '#D40511',
-  routeDash: '#D40511',
-  text: '#111111',
-  textMuted: '#242424',
+  origin: '#052D4B',
+  destination: '#06718A',
+  current: '#05A3AA',
+  route: '#06718A',
+  routeDash: '#05A3AA',
+  text: '#052D4B',
+  textMuted: '#658297',
   white: '#ffffff',
 }
 
@@ -144,7 +144,7 @@ export function LiveMap({
             <strong style={{ color: C.text, fontSize: 14 }}>Current location</strong>
             {currentLabel && <p style={{ margin: '2px 0 0', fontSize: 12, color: C.textMuted }}>{currentLabel}</p>}
             {currentStatus && (
-              <span style={{ display: 'inline-block', marginTop: 6, padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: '#FFF6CC', color: '#111111' }}>{currentStatus}</span>
+              <span style={{ display: 'inline-block', marginTop: 6, padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: '#E7F7F8', color: '#052D4B' }}>{currentStatus}</span>
             )}
             <p style={{ margin: '4px 0 0', fontSize: 11, color: '#525252' }}>{current[0].toFixed(4)}, {current[1].toFixed(4)}</p>
           </div>

@@ -35,11 +35,11 @@ export function Button({
   const base = 'inline-flex items-center justify-center gap-2 rounded-[14px] font-semibold transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-offset-2'
   const sizes = { sm: 'px-4 py-2 text-sm', md: 'px-5 py-3 text-sm', lg: 'px-7 py-4 text-base' }
   const variants = {
-    primary: 'bg-dtl-yellow text-dtl-black hover:bg-[#e6b800] focus:ring-dtl-yellow/40 shadow-[0_8px_24px_-8px_rgba(255,204,0,0.45)] hover:shadow-[0_10px_28px_-8px_rgba(255,204,0,0.55)]',
-    secondary: 'bg-dtl-red text-white hover:bg-[#b8040e] focus:ring-dtl-red/40 shadow-[0_8px_24px_-8px_rgba(212,5,17,0.45)] hover:shadow-[0_10px_28px_-8px_rgba(212,5,17,0.55)]',
-    outline: 'bg-white text-dtl-black ring-1 ring-dtl-border hover:bg-dtl-light-gray focus:ring-dtl-yellow/40',
-    ghost: 'text-dtl-black hover:bg-dtl-light-gray focus:ring-dtl-yellow/40',
-    danger: 'bg-dtl-red text-white hover:bg-[#b8040e] focus:ring-dtl-red/40',
+    primary: 'bg-primary text-navy hover:bg-[#0898A0] focus:ring-primary/40 shadow-[0_8px_24px_-8px_rgba(5,163,170,0.5)] hover:shadow-[0_10px_28px_-8px_rgba(5,163,170,0.6)]',
+    secondary: 'bg-navy text-white hover:bg-ocean-blue focus:ring-navy/40 shadow-[0_8px_24px_-8px_rgba(5,45,75,0.45)] hover:shadow-[0_10px_28px_-8px_rgba(5,45,75,0.55)]',
+    outline: 'bg-white text-navy ring-1 ring-border hover:bg-background focus:ring-primary/40',
+    ghost: 'text-navy hover:bg-background focus:ring-primary/40',
+    danger: 'bg-danger text-white hover:bg-[#912018] focus:ring-danger/40',
   }
   return <button className={cn(base, sizes[size], variants[variant], className)} {...props}>{children}</button>
 }

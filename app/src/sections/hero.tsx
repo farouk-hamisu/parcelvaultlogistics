@@ -60,7 +60,7 @@ export function Hero() {
                   <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-dtl-red">Track your shipment</label>
                   <input
                     value={tracking} onChange={e => setTracking(e.target.value)}
-                    placeholder="e.g. DTL-DEMO-0001"
+                    placeholder="e.g. PVL-DEMO-0001"
                     className="w-full bg-transparent text-base font-semibold text-dtl-black placeholder:text-dtl-charcoal/40 focus:outline-none"
                   />
                 </div>

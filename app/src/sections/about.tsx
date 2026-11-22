@@ -19,13 +19,13 @@ export function About() {
           {/* LEFT */}
           <motion.div variants={staggerParent} initial="hidden" whileInView="show" viewport={viewport} className="lg:col-span-6 relative">
             <motion.span variants={fadeUp} className="inline-flex items-center gap-2 rounded-pill bg-dtl-yellow/10 text-dtl-black ring-1 ring-dtl-yellow/30 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.22em]">
-              <span className="size-1.5 rounded-full bg-dtl-yellow" /> About DTL
+              <span className="size-1.5 rounded-full bg-dtl-yellow" /> About ParcelVault
             </motion.span>
             <motion.h2 variants={slideInLeft} className="mt-5 text-4xl lg:text-[3rem] font-bold leading-[1.06] text-dtl-black text-balance">
               Where logistics lessons are turned into precise delivery.
             </motion.h2>
             <motion.p variants={slideInLeft} className="mt-5 text-lg text-dtl-charcoal leading-relaxed">
-              We are a team of operators, customs brokerages, and engineers who have built shipping operations for Fortune 500 brands. DTL brings that level of discipline to every shipment we move — large or small.
+              We are a team of operators, customs brokerages, and engineers who have built shipping operations for Fortune 500 brands. ParcelVault brings that level of discipline to every shipment we move — large or small.
             </motion.p>
             <ul className="mt-7 space-y-3.5">
               {points.map((p, i) => (
