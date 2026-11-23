@@ -7,16 +7,24 @@ import { useAuth } from '../../hooks/useAuth'
 import {
   LayoutDashboard, Package, Wallet, FileText, Image as ImageIcon, Settings, LogOut, Plus, Trash2, ChevronRight,
   MapPin, Calendar, Truck, AlertCircle, CheckCircle2, Clock, X, Edit3, Save, Search, Upload, ExternalLink, Globe, Megaphone,
+  Bitcoin, FileWarning, FileVideo, FileImage, Download,
 } from 'lucide-react'
 import { LogoMark } from '../../components/layout/header'
-import { fmtDate, fmtDateTime, fmtMoney, statusLabel, initials, fileToDataUrl, paymentStatusLabel, paymentMethodLabel } from '../../lib/utils'
+import {
+  fmtDate, fmtDateTime, fmtMoney, statusLabel, initials, fileToDataUrl, fileToCompressedDataUrl,
+  paymentStatusLabel, paymentMethodLabel, mediaKind, formatBytes, isInlineReceipt,
+} from '../../lib/utils'
 import { LiveMap } from '../../components/tracking/live-map'
-import type { Shipment, TrackingEvent, Fee, ShipmentImage, Profile, Payment, Service, Testimonial, GalleryItem, BrandPartner, SiteSettings } from '../../lib/types'
+import type { Shipment, TrackingEvent, Fee, ShipmentImage, Profile, Payment, Service, Testimonial, GalleryItem, BrandPartner, SiteSettings, MediaFile } from '../../lib/types'
+import { uploadWithProgress } from '../../lib/api'
+
+export { AdminPaymentMethods } from './payment-methods'
 
 const sidebarLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Overview' },
   { to: '/admin/shipments', icon: Package, label: 'Shipments' },
   { to: '/admin/payments', icon: Wallet, label: 'Payments' },
+  { to: '/admin/payment-methods', icon: Bitcoin, label: 'Payment methods' },
   { to: '/admin/content', icon: FileText, label: 'Content' },
   { to: '/admin/notice', icon: Megaphone, label: 'Delivery notice' },
   { to: '/admin/media', icon: ImageIcon, label: 'Media' },
@@ -779,6 +787,42 @@ export function AdminShipment() {
   )
 }
 
+function ReceiptPreview({ value, label = 'Receipt' }: { value: string; label?: string }) {
+  const isStoragePath = /^(payment-receipts|documents|shipment-media)\//.test(value)
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['receipt-url', value],
+    enabled: isStoragePath,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const [bucket, ...rest] = value.split('/')
+      return UploadsApi.view(bucket, rest.join('/'))
+    },
+  })
+
+  const url: string | undefined = isStoragePath ? data?.url : value
+  const kind = isStoragePath ? mediaKind(value) : value.startsWith('data:application/pdf') ? 'document' : value.startsWith('data:image/') ? 'image' : mediaKind(value)
+
+  if (isStoragePath && isLoading) return <p className="text-xs text-text-secondary">Loading secure link…</p>
+  if (isStoragePath && error) return <p className="text-xs text-danger">{(error as any)?.message || 'Could not open the file.'}</p>
+  if (!url) return null
+
+  if (kind === 'image') {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="inline-block">
+        <img src={url} alt={label} className="max-h-56 w-auto max-w-full rounded-xl object-contain ring-1 ring-border" />
+      </a>
+    )
+  }
+  if (kind === 'video') {
+    return <video src={url} controls className="max-h-56 w-full rounded-xl bg-black" />
+  }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary-dark hover:text-primary">
+      <ExternalLink className="size-3.5" /> View {kind === 'document' ? 'PDF' : 'file'}
+    </a>
+  )
+}
+
 export function AdminPayments() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-payments'],
@@ -822,13 +866,16 @@ export function AdminPayments() {
                 <tr key={p.id} className="hover:bg-dtl-light-gray/50 transition-colors">
                   <td className="p-4 font-semibold text-dtl-black">#{(p as any).shipments?.tracking_number || '—'}</td>
                   <td className="p-4 font-semibold text-dtl-black">{fmtMoney(p.amount, p.currency)}</td>
-                  <td className="p-4 text-dtl-charcoal">{paymentMethodLabel(p.method)}</td>
+                  <td className="p-4 text-dtl-charcoal">
+                    {paymentMethodLabel(p.method)}
+                    {(p as any).payment_methods?.name && (
+                      <span className="block text-xs text-dtl-charcoal/70">{(p as any).payment_methods.name}{(p as any).payment_methods.network ? ` · ${(p as any).payment_methods.network}` : ''}</span>
+                    )}
+                  </td>
                   <td className="p-4"><StatusBadge status={p.status} label={paymentStatusLabel(p.status)} /></td>
                   <td className="p-4">
                     {p.receipt_url ? (
-                      <a href={p.receipt_url} target="_blank" rel="noopener noreferrer" className="text-primary-dark hover:text-primary inline-flex items-center gap-1">
-                        <ExternalLink className="size-3.5" /> {p.receipt_url.startsWith('data:') ? 'Photo' : 'View'}
-                      </a>
+                      <span className="inline-flex items-center gap-1 text-primary-dark">Proof attached</span>
                     ) : '—'}
                   </td>
                   <td className="p-4 text-dtl-charcoal text-xs">{fmtDate(p.created_at)}</td>
@@ -865,16 +912,18 @@ export function AdminPayments() {
                 <span className="font-semibold text-right">{selectedPayment.sender_name || ''}{selectedPayment.sender_name && selectedPayment.sender_email ? ' · ' : ''}{selectedPayment.sender_email || ''}</span>
               </div>
             )}
+            {selectedPayment.method !== 'gift_card' && (
+              <>
+                <div className="flex justify-between gap-4 text-sm"><span className="text-dtl-charcoal shrink-0">Payment option</span><span className="font-semibold text-right">{(selectedPayment as any).payment_methods?.name || '—'}</span></div>
+                <div className="flex justify-between gap-4 text-sm"><span className="text-dtl-charcoal shrink-0">Network</span><span className="font-semibold text-right">{selectedPayment.network || (selectedPayment as any).payment_methods?.network || '—'}</span></div>
+                <div className="flex justify-between gap-4 text-sm"><span className="text-dtl-charcoal shrink-0">Transaction hash</span><span className="font-mono font-semibold break-all text-right">{selectedPayment.tx_hash || '—'}</span></div>
+                <div className="flex justify-between gap-4 text-sm"><span className="text-dtl-charcoal shrink-0">Transfer reference</span><span className="font-mono font-semibold break-all text-right">{selectedPayment.reference || '—'}</span></div>
+              </>
+            )}
             {selectedPayment.receipt_url && (
               <div className="text-sm">
-                <p className="text-dtl-charcoal mb-2">{selectedPayment.method === 'gift_card' ? 'Gift card photo' : 'Receipt'}</p>
-                {selectedPayment.receipt_url.startsWith('data:') ? (
-                  <a href={selectedPayment.receipt_url} target="_blank" rel="noopener noreferrer" className="inline-block">
-                    <img src={selectedPayment.receipt_url} alt="Gift card" className="max-h-56 w-auto max-w-full rounded-xl ring-1 ring-dtl-border object-contain" />
-                  </a>
-                ) : (
-                  <a href={selectedPayment.receipt_url} target="_blank" rel="noopener noreferrer" className="text-primary-dark hover:text-primary inline-flex items-center gap-1"><ExternalLink className="size-3.5" /> View receipt</a>
-                )}
+                <p className="text-dtl-charcoal mb-2">{selectedPayment.method === 'gift_card' ? 'Gift card photo' : 'Proof of payment'}</p>
+                <ReceiptPreview value={selectedPayment.receipt_url} label="Proof of payment" />
               </div>
             )}
             {selectedPayment.notes && <div className="flex justify-between gap-4 text-sm"><span className="text-dtl-charcoal shrink-0">Notes</span><span className="text-right">{selectedPayment.notes}</span></div>}
@@ -1050,84 +1099,289 @@ export function AdminContent() {
   )
 }
 
+const MEDIA_BUCKETS = ['shipment-media', 'shipment-images', 'gallery', 'brand-logos', 'homepage', 'documents', 'payment-receipts'] as const
+const PUBLIC_BUCKETS = ['shipment-media', 'shipment-images', 'gallery', 'brand-logos', 'homepage']
+
+const MEDIA_ACCEPT = 'image/jpeg,image/png,image/webp,video/mp4,video/webm,application/pdf'
+
+function validateMediaFile(file: File): string | null {
+  if (file.type === 'application/pdf') {
+    if (file.size > 25 * 1024 * 1024) return 'That PDF is too large. The maximum size is 25 MB.'
+    return null
+  }
+  if (file.type.startsWith('video/')) {
+    if (!['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg'].includes(file.type)) {
+      return 'Unsupported video format. Use MP4 or WEBM.'
+    }
+    if (file.size > 100 * 1024 * 1024) return 'That video is too large. The maximum size is 100 MB.'
+    return null
+  }
+  if (file.type.startsWith('image/')) {
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      return 'Unsupported image format. Use JPG, PNG or WEBP.'
+    }
+    if (file.size > 10 * 1024 * 1024) return 'That image is too large. The maximum size is 10 MB.'
+    return null
+  }
+  return 'Unsupported file type. Upload a JPG, PNG or WEBP image, an MP4 or WEBM video, or a PDF document.'
+}
+
 export function AdminMedia() {
   const queryClient = useQueryClient()
-  const buckets = ['shipment-images', 'gallery', 'brand-logos', 'homepage', 'documents', 'payment-receipts']
-  const [activeBucket, setActiveBucket] = useState(buckets[0])
+  const [activeBucket, setActiveBucket] = useState<string>(MEDIA_BUCKETS[0])
+  const [filter, setFilter] = useState<'all' | 'image' | 'video' | 'document'>('all')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [progress, setProgress] = useState(0)
+  const [uploadError, setUploadError] = useState('')
+  const [feedback, setFeedback] = useState('')
+  const [preview, setPreview] = useState<{ name: string; url: string; kind: 'image' | 'video' | 'document' } | null>(null)
+  const [openingName, setOpeningName] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const isPublicBucket = PUBLIC_BUCKETS.includes(activeBucket)
+
+  const { data, isLoading, error } = useQuery({
     queryKey: ['admin-media', activeBucket],
     queryFn: () => UploadsApi.list(activeBucket),
   })
 
   const uploadMut = useMutation({
     mutationFn: async () => {
-      if (!uploadFile) return
-      const dataUrl = await fileToDataUrl(uploadFile)
-      return UploadsApi.direct({ bucket: activeBucket, file: dataUrl, public: true })
+      if (!uploadFile) throw new Error('Choose a file first.')
+      const problem = validateMediaFile(uploadFile)
+      if (problem) throw new Error(problem)
+      return uploadWithProgress(activeBucket, uploadFile, setProgress)
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-media', activeBucket] }); setUploadFile(null) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-media', activeBucket] })
+      setFeedback('File uploaded successfully.')
+      setUploadFile(null)
+      setProgress(0)
+      setUploadError('')
+    },
+    onError: (err: any) => {
+      setUploadError(err?.message || 'Upload failed. Please try again.')
+      setProgress(0)
+    },
   })
 
   const deleteMut = useMutation({
     mutationFn: (path: string) => UploadsApi.remove(activeBucket, path),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-media', activeBucket] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-media', activeBucket] })
+      setFeedback('File deleted.')
+    },
+    onError: (err: any) => setFeedback(err?.message || 'Could not delete that file.'),
   })
 
-  const files: any[] = Array.isArray(data) ? data : []
+  const files: MediaFile[] = (data as any)?.files ?? []
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const publicUrl = (name: string) => `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/${activeBucket}/${name}`
+  const kindOf = (file: MediaFile) => {
+    const mime = file.metadata?.mimetype || ''
+    if (mime.startsWith('video/')) return 'video' as const
+    if (mime === 'application/pdf') return 'document' as const
+    if (mime.startsWith('image/')) return 'image' as const
+    return mediaKind(file.name)
+  }
+
+  async function openFile(file: MediaFile) {
+    const kind = kindOf(file)
+    setOpeningName(file.name)
+    try {
+      const url = isPublicBucket ? publicUrl(file.name) : (await UploadsApi.view(activeBucket, file.name)).url
+      if (kind === 'document' || kind === 'other') {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } else {
+        setPreview({ name: file.name, url, kind })
+      }
+    } catch (err: any) {
+      setFeedback(err?.message || 'Could not open that file.')
+    } finally {
+      setOpeningName('')
+    }
+  }
+
+  const visible = files.filter(f => filter === 'all' || kindOf(f) === filter)
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-dtl-black mb-6">Media Library</h1>
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {buckets.map(b => (
-          <button key={b} onClick={() => setActiveBucket(b)}
-            className={`px-4 py-2 rounded-[14px] text-sm font-semibold transition-colors ${
-              activeBucket === b ? 'bg-dtl-yellow text-dtl-black' : 'bg-white text-dtl-charcoal hover:bg-dtl-light-gray ring-1 ring-dtl-border'
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-navy">Media library</h1>
+          <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+            Upload and manage images, videos, and PDF documents. Public buckets are served directly to customers;
+            private buckets are available to admins through secure links.
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        {MEDIA_BUCKETS.map(b => (
+          <button key={b} onClick={() => { setActiveBucket(b); setFeedback(''); setUploadError('') }}
+            className={`rounded-[14px] px-4 py-2 text-sm font-semibold transition-colors ${
+              activeBucket === b ? 'bg-primary text-navy' : 'bg-white text-text-secondary ring-1 ring-border hover:bg-background'
             }`}>
             {b}
+            {!PUBLIC_BUCKETS.includes(b) && <span className="ml-1.5 text-[10px] uppercase tracking-wide opacity-70">private</span>}
           </button>
         ))}
       </div>
 
-      <Card className="p-6 mb-6">
-        <h3 className="text-lg font-bold text-dtl-black mb-4">Upload file</h3>
-        <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); uploadMut.mutate() }} className="flex gap-3 items-end">
-          <div className="flex-1">
-            <input required type="file" onChange={(e: any) => setUploadFile(e.target.files?.[0] || null)}
-              className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary-dark hover:file:bg-primary/20" />
+      <Card className="mb-6 p-6">
+        <h3 className="mb-1 text-lg font-bold text-navy">Upload file</h3>
+        <p className="mb-4 text-sm text-text-secondary">
+          Images: JPG, PNG, WEBP (max 10 MB) · Videos: MP4, WEBM (max 100 MB) · Documents: PDF (max 25 MB)
+        </p>
+        <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); setFeedback(''); setUploadError(''); uploadMut.mutate() }} className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <input
+                required
+                type="file"
+                accept={MEDIA_ACCEPT}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setUploadFile(e.target.files?.[0] || null)
+                  setUploadError('')
+                  setProgress(0)
+                }}
+                className="block w-full text-sm text-text-secondary file:mr-4 file:rounded-[14px] file:border-0 file:bg-primary/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary-dark hover:file:bg-primary/20"
+              />
+              {uploadFile && (
+                <p className="mt-1.5 text-xs text-text-secondary">
+                  {uploadFile.name} · {formatBytes(uploadFile.size)}
+                </p>
+              )}
+            </div>
+            <Button type="submit" disabled={uploadMut.isPending || !uploadFile}>
+              <Upload className="size-4" /> {uploadMut.isPending ? 'Uploading…' : 'Upload'}
+            </Button>
           </div>
-          <Button type="submit" size="sm" disabled={uploadMut.isPending || !uploadFile}><Upload className="size-4" /> Upload</Button>
+
+          {uploadMut.isPending && (
+            <div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-background ring-1 ring-border">
+                <div className="h-full rounded-full bg-primary transition-all duration-200" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="mt-1 text-xs font-semibold text-primary-dark">{progress}% uploaded</p>
+            </div>
+          )}
+
+          {uploadError && (
+            <p className="flex items-start gap-2 rounded-xl bg-danger-bg p-3 text-sm text-danger">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" /> {uploadError}
+            </p>
+          )}
         </form>
       </Card>
 
+      {feedback && (
+        <p className="mb-4 flex items-center gap-2 rounded-xl bg-primary-soft p-3 text-sm font-semibold text-primary-dark">
+          <CheckCircle2 className="size-4" /> {feedback}
+        </p>
+      )}
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(['all', 'image', 'video', 'document'] as const).map(k => (
+          <button key={k} onClick={() => setFilter(k)}
+            className={`rounded-pill px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide transition ${
+              filter === k ? 'bg-navy text-white' : 'bg-white text-text-secondary ring-1 ring-border hover:bg-background'
+            }`}>
+            {k === 'all' ? 'All files' : k === 'image' ? 'Images' : k === 'video' ? 'Videos' : 'PDFs'}
+          </button>
+        ))}
+      </div>
+
       {isLoading && <Spinner />}
-      {!isLoading && files.length === 0 && <EmptyState title="No files" />}
-      {files.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-          {files.map((file: any) => {
-            const url = `${supabaseUrl}/storage/v1/object/public/${activeBucket}/${file.name}`
-            const isImage = file.metadata?.mimetype?.startsWith('image/')
+      {error && <p className="text-sm text-danger">{(error as any)?.message || 'Could not load files.'}</p>}
+      {!isLoading && !error && visible.length === 0 && (
+        <EmptyState title="No files" hint="Upload a file to see it here." />
+      )}
+
+      {visible.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {visible.map(file => {
+            const kind = kindOf(file)
+            const thumb = isPublicBucket ? publicUrl(file.name) : null
             return (
-              <div key={file.name} className="group relative rounded-xl overflow-hidden ring-1 ring-dtl-border bg-white">
-                {isImage ? (
-                  <img src={url} alt={file.name} className="w-full h-28 object-cover" />
-                ) : (
-                  <div className="w-full h-28 flex items-center justify-center bg-dtl-light-gray text-dtl-charcoal/50 text-xs">{file.name.split('.').pop()}</div>
-                )}
-                <div className="p-2">
-                  <p className="text-xs text-dtl-charcoal truncate">{file.name}</p>
-                </div>
-                <button onClick={() => deleteMut.mutate(file.name)}
-                  className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-danger opacity-0 group-hover:opacity-100 transition shadow">
-                  <Trash2 className="size-3.5" />
+              <div key={file.name} className="group overflow-hidden rounded-xl bg-white ring-1 ring-border">
+                <button type="button" onClick={() => openFile(file)} className="relative block h-32 w-full overflow-hidden bg-background text-left">
+                  {kind === 'image' && thumb ? (
+                    <img src={thumb} alt={file.name} className="h-full w-full object-cover" loading="lazy" />
+                  ) : kind === 'video' ? (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-navy text-white">
+                      <FileVideo className="size-7 text-primary-light" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide">Video</span>
+                    </div>
+                  ) : kind === 'document' ? (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-primary-soft text-primary-dark">
+                      <FileWarning className="size-7" />
+                      <span className="text-[11px] font-bold uppercase tracking-wide">PDF</span>
+                    </div>
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-text-secondary">
+                      <FileImage className="size-7" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide">File</span>
+                    </div>
+                  )}
+                  {openingName === file.name && (
+                    <span className="absolute inset-0 grid place-items-center bg-white/70"><Spinner /></span>
+                  )}
                 </button>
+                <div className="p-2.5">
+                  <p className="truncate text-xs font-semibold text-navy" title={file.name}>{file.name}</p>
+                  <p className="mt-0.5 text-[11px] text-text-secondary">
+                    {file.metadata?.size ? formatBytes(file.metadata.size) : ''}
+                    {file.metadata?.size && isPublicBucket ? ' · ' : ''}
+                    {isPublicBucket ? 'public' : 'private'}
+                  </p>
+                </div>
+                <div className="flex border-t border-border">
+                  <button onClick={() => openFile(file)} className="flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-semibold text-primary-dark hover:bg-primary-soft">
+                    <ExternalLink className="size-3.5" /> View
+                  </button>
+                  {isPublicBucket && (
+                    <a href={publicUrl(file.name)} download target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center border-l border-border px-3 py-2 text-text-secondary hover:bg-background" aria-label={`Download ${file.name}`}>
+                      <Download className="size-3.5" />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => { if (window.confirm(`Delete ${file.name}?`)) deleteMut.mutate(file.name) }}
+                    disabled={deleteMut.isPending}
+                    className="flex items-center justify-center border-l border-border px-3 py-2 text-danger hover:bg-danger-bg disabled:opacity-50"
+                    aria-label={`Delete ${file.name}`}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-navy/80 p-4" role="dialog" aria-modal="true" aria-label="File preview" onClick={() => setPreview(null)}>
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-card bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+              <p className="min-w-0 truncate text-sm font-semibold text-navy">{preview.name}</p>
+              <div className="flex items-center gap-2">
+                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-primary-dark hover:text-primary">Open in new tab</a>
+                <button onClick={() => setPreview(null)} className="rounded-lg p-1.5 text-text-secondary hover:bg-background" aria-label="Close preview">
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[calc(90vh-3.5rem)] overflow-auto bg-navy/5 p-3">
+              {preview.kind === 'image' ? (
+                <img src={preview.url} alt={preview.name} className="mx-auto max-h-[75vh] w-auto max-w-full rounded-lg object-contain" />
+              ) : preview.kind === 'video' ? (
+                <video src={preview.url} controls autoPlay playsInline className="mx-auto max-h-[75vh] w-full rounded-lg bg-black" />
+              ) : (
+                <iframe src={preview.url} title={preview.name} className="h-[75vh] w-full rounded-lg bg-white" />
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1379,52 +1633,14 @@ export function AdminSettings() {
         </Card>
 
         <Card className="p-8">
-          <h3 className="text-lg font-bold text-dtl-black mb-6">Payment Information</h3>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-semibold text-dtl-black mb-1.5">USDT TRC20 Address</label>
-              <input value={merged.usdt_trc20_address ?? ''} onChange={(e: any) => set('usdt_trc20_address', e.target.value)}
-                className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-            </div>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-sm font-semibold text-dtl-black mb-1.5">ACH account holder</label>
-                <input value={merged.ach_account_holder ?? ''} onChange={(e: any) => set('ach_account_holder', e.target.value)}
-                  className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-dtl-black mb-1.5">ACH bank</label>
-                <input value={merged.ach_bank ?? ''} onChange={(e: any) => set('ach_bank', e.target.value)}
-                  className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-sm font-semibold text-dtl-black mb-1.5">Account number</label>
-                <input value={merged.ach_account_number ?? ''} onChange={(e: any) => set('ach_account_number', e.target.value)}
-                  className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-dtl-black mb-1.5">Routing number</label>
-                <input value={merged.ach_routing_number ?? ''} onChange={(e: any) => set('ach_routing_number', e.target.value)}
-                  className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-sm font-semibold text-dtl-black mb-1.5">Account type</label>
-                <input value={merged.ach_account_type ?? ''} onChange={(e: any) => set('ach_account_type', e.target.value)}
-                  className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-dtl-black mb-1.5">Bank address</label>
-                <input value={merged.ach_bank_address ?? ''} onChange={(e: any) => set('ach_bank_address', e.target.value)}
-                  className="w-full rounded-[14px] border border-dtl-border bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-              </div>
-            </div>
-            {message && <p className={`text-sm ${patchMut.isSuccess ? 'text-emerald-600' : 'text-danger'}`}>{message}</p>}
-            <Button type="submit" disabled={patchMut.isPending}>{patchMut.isPending ? 'Saving...' : 'Save settings'}</Button>
-          </form>
+          <h3 className="text-lg font-bold text-dtl-black mb-2">Payment methods</h3>
+          <p className="text-sm text-dtl-charcoal mb-5">
+            Cryptocurrency wallets and bank wire accounts are now managed as individual payment options, so you can add,
+            edit, hide, or remove them without a redeploy.
+          </p>
+          <Link to="/admin/payment-methods" className="inline-flex items-center gap-2 rounded-[14px] bg-primary px-5 py-3 text-sm font-semibold text-navy hover:bg-[#0898A0] transition">
+            <Bitcoin className="size-4" /> Manage payment methods
+          </Link>
         </Card>
 
         <Card className="p-8">

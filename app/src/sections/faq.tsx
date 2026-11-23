@@ -3,13 +3,14 @@ import { motion } from 'framer-motion'
 import { Plus, Minus } from 'lucide-react'
 import { fadeUp, staggerParent, viewport } from '../lib/motion'
 import { SectionLabel } from './_section'
+import { ContactSupportButton } from '../components/support/live-chat'
 
 const faqs = [
   { q: 'How do I track my shipment?', a: 'Use any tracking number from your confirmation email in the Track page. Each shipment shows a live map, timeline, photos, and customs status. You can also log in to your dashboard to see all your shipments together.' },
-  { q: 'Can I pay customs duty online?', a: 'Yes. When a customs or shipment fee is applied, you will be notified and a payment notice will appear on the shipment detail page. We currently accept gift cards — submit your card details and a clear photo and our finance team verifies it before your balance is updated.' },
+  { q: 'Can I pay customs duty online?', a: 'Yes. When a customs or shipment fee is applied, you will be notified and a payment notice will appear on the shipment detail page. Choose gift card, cryptocurrency, or bank wire transfer, follow the instructions, and our finance team verifies the payment before your balance is updated.' },
   { q: 'How long does customs clearance take?', a: 'For routine shipments, customs clearance at major ports averages 6 hours after duties are settled. For inspections or holds, your dispatch desk will keep you posted every step of the way.' },
   { q: 'Can I track a shipment without an account?', a: 'Absolutely. Anyone with a valid tracking number can use the public Track page. Accounts are only needed to manage multiple shipments, receive notifications, or upload payment proof.' },
-  { q: 'What payment methods are supported?', a: 'We currently accept gift card payments. On the shipment page, choose Pay with gift card, enter the card type, value and code, upload a clear photo of the card, and submit — it shows as "Pending verification" until our team reviews it.' },
+  { q: 'What payment methods are supported?', a: 'You can pay outstanding customs and shipping fees by gift card, cryptocurrency, or bank wire transfer. On the shipment page choose your preferred method, follow the on-screen instructions, then submit the required reference, transaction hash or proof of payment. Every submission shows as "Pending verification" until our finance team reviews it.' },
   { q: 'What happens if my shipment is on hold?', a: 'If your shipment is placed under "Customs Hold" or "Awaiting Payment", it remains fully trackable. You will see a clear reason and a payment notice if any outstanding fees are required to release it.' },
 ]
 
@@ -28,6 +29,9 @@ export function FAQ() {
             <a href="/contact" className="mt-6 inline-flex items-center gap-2 rounded-[14px] bg-dtl-black px-6 py-3.5 text-sm font-semibold text-white hover:bg-dtl-charcoal transition">
               Contact support →
             </a>
+            <div className="mt-4">
+              <ContactSupportButton variant="outline" size="sm" icon="headset" />
+            </div>
           </div>
 
           <motion.dl variants={staggerParent} initial="hidden" whileInView="show" viewport={viewport} className="lg:col-span-7 space-y-3">

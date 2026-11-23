@@ -7,6 +7,7 @@ import contentRouter from './routes/content.js'
 import authRouter from './routes/auth.js'
 import publicRouter from './routes/public.js'
 import uploadsRouter from './routes/uploads.js'
+import paymentMethodsRouter from './routes/payment-methods.js'
 
 const app = express()
 
@@ -49,7 +50,7 @@ app.use(cors({
   origin: originCallback,
   credentials: true,
 }))
-app.use(express.json({limit: '12mb'}))
+app.use(express.json({limit: '30mb'}))
 
 app.get('/api/health', (_req, res) => {
   let supabaseHost = null
@@ -65,6 +66,7 @@ app.use('/api/shipments', shipmentsRouter)
 app.use('/api/payments', paymentsRouter)
 app.use('/api/content', contentRouter)
 app.use('/api/uploads', uploadsRouter)
+app.use('/api/payment-methods', paymentMethodsRouter)
 
 app.use((err, _req, res, _next) => {
   console.error('[api:error]', err.message)

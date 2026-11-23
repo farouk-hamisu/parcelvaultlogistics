@@ -8,11 +8,16 @@ import { fadeUp, slideInLeft, slideInRight, staggerParent } from '../lib/motion'
 export function Hero() {
   const navigate = useNavigate()
   const [tracking, setTracking] = useState('')
+  const [error, setError] = useState('')
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    const v = tracking.trim().toUpperCase()
-    if (!v) return
+    const v = tracking.trim().toUpperCase().replace(/^#/, '')
+    if (!v) {
+      setError('Enter a tracking number to see your shipment.')
+      return
+    }
+    setError('')
     navigate({ to: '/track/$trackingNumber', params: { trackingNumber: v } })
   }
 
@@ -59,8 +64,10 @@ export function Hero() {
                 <div className="flex-1">
                   <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-dtl-red">Track your shipment</label>
                   <input
-                    value={tracking} onChange={e => setTracking(e.target.value)}
+                    value={tracking} onChange={e => { setTracking(e.target.value); if (error) setError('') }}
                     placeholder="e.g. PVL-DEMO-0001"
+                    aria-label="Tracking number"
+                    aria-invalid={!!error}
                     className="w-full bg-transparent text-base font-semibold text-dtl-black placeholder:text-dtl-charcoal/40 focus:outline-none"
                   />
                 </div>
@@ -68,6 +75,11 @@ export function Hero() {
                   Track <ArrowRight className="size-4" />
                 </Button>
               </div>
+              {error && (
+                <p role="alert" className="border-t border-dtl-border bg-dtl-yellow/10 px-5 py-2.5 text-xs font-semibold text-dtl-red">
+                  {error}
+                </p>
+              )}
             </motion.form>
           </motion.div>
 

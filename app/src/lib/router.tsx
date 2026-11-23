@@ -8,7 +8,7 @@ import { GalleryPage } from '../pages/gallery'
 import { ContactPage } from '../pages/contact'
 import { QuotePage } from '../pages/quote'
 import { AdminLoginPage } from '../pages/admin-login'
-import { AdminLayout, AdminOverview, AdminShipments, AdminShipment, AdminPayments, AdminContent, AdminNotice, AdminSettings, AdminMedia } from '../pages/admin'
+import { AdminLayout, AdminOverview, AdminShipments, AdminShipment, AdminPayments, AdminContent, AdminNotice, AdminSettings, AdminMedia, AdminPaymentMethods } from '../pages/admin'
 
 function TrackLayout() { return <Outlet /> }
 
@@ -30,6 +30,7 @@ const adminHome = createRoute({ getParentRoute: () => adminLayout, path: '/', co
 const adminShipments = createRoute({ getParentRoute: () => adminLayout, path: 'shipments', component: AdminShipments })
 const adminShipment = createRoute({ getParentRoute: () => adminLayout, path: 'shipments/$id', component: AdminShipment })
 const adminPayments = createRoute({ getParentRoute: () => adminLayout, path: 'payments', component: AdminPayments })
+const adminPaymentMethods = createRoute({ getParentRoute: () => adminLayout, path: 'payment-methods', component: AdminPaymentMethods })
 const adminContent = createRoute({ getParentRoute: () => adminLayout, path: 'content', component: AdminContent })
 const adminNotice = createRoute({ getParentRoute: () => adminLayout, path: 'notice', component: AdminNotice })
 const adminMedia = createRoute({ getParentRoute: () => adminLayout, path: 'media', component: AdminMedia })
@@ -39,7 +40,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     home, trackLayout.addChildren([trackIndex, trackResult]), services, about, gallery, contact, quote, adminLogin,
     adminLayout.addChildren([
-      adminHome, adminShipments, adminShipment, adminPayments, adminContent, adminNotice, adminMedia, adminSettings,
+      adminHome, adminShipments, adminShipment, adminPayments, adminPaymentMethods, adminContent, adminNotice, adminMedia, adminSettings,
     ]),
   ]),
   defaultPreload: 'intent',

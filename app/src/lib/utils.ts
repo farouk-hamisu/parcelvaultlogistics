@@ -72,6 +72,8 @@ export function paymentStatusLabel(s: string): string {
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   gift_card: 'Gift card',
+  crypto: 'Cryptocurrency',
+  bank: 'Bank wire transfer',
   usdt_trc20: 'USDT TRC20',
   ach: 'ACH',
   wire: 'Wire',
@@ -80,6 +82,28 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export function paymentMethodLabel(m: string): string {
   return PAYMENT_METHOD_LABELS[m] ?? statusLabel(m)
+}
+
+export function isInlineReceipt(url?: string | null) {
+  return !!url && (url.startsWith('data:') || /^https?:\/\//i.test(url))
+}
+
+/** Detect the media type of a storage URL or object name. */
+export function mediaKind(urlOrName?: string | null): 'image' | 'video' | 'document' | 'other' {
+  const value = (urlOrName || '').split(/[?#]/)[0].toLowerCase()
+  if (/\.(jpe?g|png|webp|gif|avif)$/.test(value)) return 'image'
+  if (/\.(mp4|webm|mov|ogv|ogg)$/.test(value)) return 'video'
+  if (/\.pdf$/.test(value)) return 'document'
+  return 'other'
+}
+
+export function formatBytes(bytes?: number | null) {
+  if (!bytes || bytes < 0) return ''
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++ }
+  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`
 }
 
 export function copyToClipboard(text: string) {

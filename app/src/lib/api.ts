@@ -29,9 +29,12 @@ export const PublicApi = {
   partners: () => api(`/public/partners`, { auth: false }),
   gallery: () => api(`/public/gallery`, { auth: false }),
   testimonials: () => api(`/public/testimonials`, { auth: false }),
+  paymentMethods: () => api(`/public/payment-methods`, { auth: false }),
   contact: (b: any) => api(`/public/contact`, { method: 'POST', body: JSON.stringify(b), auth: false }),
   newsletter: (b: any) => api(`/public/newsletter`, { method: 'POST', body: JSON.stringify(b), auth: false }),
   submitPayment: (b: any) => api(`/public/payment`, { method: 'POST', body: JSON.stringify(b), auth: false }),
+  uploadProof: (b: { tracking_number: string; file: string }) =>
+    api(`/public/payment-proof`, { method: 'POST', body: JSON.stringify(b), auth: false }),
 }
 
 export const AuthApi = {
@@ -73,8 +76,55 @@ export const ContentApi = {
 export const UploadsApi = {
   direct: (b: { bucket: string; path?: string; contentType?: string; file: string; public?: boolean }) =>
     api(`/uploads/direct`, { method: 'POST', body: JSON.stringify(b) }),
+  sign: (b: { bucket: string; path?: string; contentType?: string }) =>
+    api(`/uploads/sign`, { method: 'POST', body: JSON.stringify(b) }),
   list: (bucket: string) => api(`/uploads/list/${bucket}`),
+  view: (bucket: string, path: string) =>
+    api(`/uploads/view/${bucket}/${encodeURIComponent(path)}`),
   remove: (bucket: string, path: string) => api(`/uploads/delete/${bucket}/${encodeURIComponent(path)}`, { method: 'DELETE' }),
+}
+
+export const PaymentMethodsApi = {
+  list: () => api(`/payment-methods`),
+  create: (b: any) => api(`/payment-methods`, { method: 'POST', body: JSON.stringify(b) }),
+  update: (id: string, b: any) => api(`/payment-methods/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
+  remove: (id: string) => api(`/payment-methods/${id}`, { method: 'DELETE' }),
+}
+
+/**
+ * Upload a file straight to Supabase Storage using a signed URL, reporting
+ * real progress. Falls back to a normal PUT if the browser lacks XHR upload.
+ */
+export async function uploadWithProgress(
+  bucket: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<{ bucket: string; path: string; url: string }> {
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const signed = await UploadsApi.sign({ bucket, path, contentType: file.type })
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', signed.signedUrl)
+    xhr.setRequestHeader('x-upsert', 'false')
+    if (signed.token) xhr.setRequestHeader('x-up-token', signed.token)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100)
+        resolve()
+      } else {
+        reject(new Error(`Upload failed (${xhr.status}). Please try again.`))
+      }
+    }
+    xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'))
+    xhr.send(file)
+  })
+
+  return { bucket, path, url: signed.publicUrl }
 }
 
 export type Api = typeof api

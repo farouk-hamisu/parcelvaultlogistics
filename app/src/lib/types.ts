@@ -86,7 +86,7 @@ export type Fee = {
   updated_at: string
 }
 
-export type PayMethod = 'usdt_trc20' | 'ach' | 'wire' | 'other' | 'gift_card'
+export type PayMethod = 'gift_card' | 'crypto' | 'bank' | 'usdt_trc20' | 'ach' | 'wire' | 'other'
 export type PayStatus = 'pending' | 'verified' | 'rejected'
 export type Payment = {
   id: string
@@ -96,6 +96,9 @@ export type Payment = {
   amount: number
   currency: string
   method: PayMethod
+  payment_method_id?: string | null
+  network?: string | null
+  tx_hash?: string | null
   reference?: string | null
   notes?: string | null
   receipt_url?: string | null
@@ -119,7 +122,44 @@ export type PublicPayment = {
   currency: string
   card_brand?: string | null
   card_value?: number | null
+  network?: string | null
+  tx_hash?: string | null
+  reference?: string | null
+  payment_method_id?: string | null
   created_at: string
+}
+
+export type PaymentMethodKind = 'crypto' | 'bank'
+
+export type PaymentMethod = {
+  id: string
+  kind: PaymentMethodKind
+  name: string
+  currency?: string | null
+  network?: string | null
+  wallet_address?: string | null
+  beneficiary_name?: string | null
+  bank_name?: string | null
+  account_number?: string | null
+  swift_bic?: string | null
+  iban?: string | null
+  routing_number?: string | null
+  account_type?: string | null
+  bank_address?: string | null
+  instructions?: string | null
+  reference_label?: string | null
+  sort_order: number
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type MediaFile = {
+  name: string
+  id?: string | null
+  updated_at?: string | null
+  created_at?: string | null
+  metadata?: { mimetype?: string; size?: number } | null
 }
 
 export type ShipmentImage = {

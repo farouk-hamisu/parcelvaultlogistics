@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Mail, Phone, MapPin, Send, Loader2 } from 'lucide-react'
+import { MapPin, Send, Loader2, Headphones } from 'lucide-react'
 import { fadeUp, staggerParent, viewport } from '../lib/motion'
 import { SectionLabel } from './_section'
 import { PublicApi } from '../lib/api'
 import { useSiteSettings } from '../hooks/useSiteSettings'
 import { Button, Input, Textarea, Label } from '../components/ui/primitives'
+import { ContactSupportButton } from '../components/support/live-chat'
 
 export function Contact() {
   const { settings } = useSiteSettings()
@@ -43,11 +44,22 @@ export function Contact() {
 
             <ul className="mt-8 space-y-4">
               <ContactRow icon={<MapPin className="size-5" />} label="Visit" value={settings.contact_address || '1801 Main Street, Kansas City, MO 64108, United States'} />
-              <ContactRow icon={<Phone className="size-5" />} label="Call" value={settings.contact_phone || '+1 (415) 498-0913'} href={`tel:${settings.contact_phone}`} />
-              <ContactRow icon={<Mail className="size-5" />} label="Email" value={settings.contact_email || 'support@parcelvaultlogistics.com'} href={`mailto:${settings.contact_email}`} />
             </ul>
 
-            <div className="mt-8 rounded-card bg-dtl-light-gray p-6 ring-1 ring-dtl-border">
+            <div className="mt-6 rounded-card bg-dtl-charcoal p-6 text-white">
+              <div className="flex items-start gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-navy">
+                  <Headphones className="size-5" />
+                </span>
+                <div>
+                  <p className="font-bold">Contact Customer Support</p>
+                  <p className="mt-1 text-sm text-white/75">Chat live with our dispatch desk for tracking updates, holds, and payments.</p>
+                </div>
+              </div>
+              <ContactSupportButton variant="onDark" size="sm" className="mt-4" fullWidth />
+            </div>
+
+            <div className="mt-6 rounded-card bg-dtl-light-gray p-6 ring-1 ring-dtl-border">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-dtl-red">Business hours</p>
               <p className="mt-2 text-sm text-dtl-charcoal">{settings.business_hours || 'Mon – Fri: 08:00 – 18:00  ·  Sat: 09:00 – 14:00'}</p>
             </div>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Menu, X, Phone, ChevronRight } from 'lucide-react'
+import { Menu, X, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useSiteSettings } from '../../hooks/useSiteSettings'
+import { ContactSupportButton } from '../support/live-chat'
 
 const navLinks = [
   { label: 'Home', to: '/' },
@@ -36,9 +37,11 @@ export function Header() {
             <span className="inline-flex items-center gap-2 text-white/70">
               <MapPinSmall /> {settings.contact_address || '1801 Main Street, Kansas City, MO 64108, United States'}
             </span>
-            <a href={`tel:${settings.contact_phone || '+1 (415) 498-0913'}`} className="inline-flex items-center gap-2 hover:text-primary-light transition">
-              <Phone className="size-3.5" /> {settings.contact_phone || '+1 (415) 498-0913'}
-            </a>
+            <ContactSupportButton
+              variant="onDark"
+              size="sm"
+              className="!px-3 !py-1 !text-[11px] !rounded-pill"
+            />
           </div>
           <div className="flex items-center gap-5">
             <Socials />
@@ -83,6 +86,7 @@ export function Header() {
           ))}
           <hr className="my-3 border-border" />
           <Link to="/track" onClick={() => setOpen(false)} className="rounded-pill bg-primary px-4 py-2.5 text-center text-sm font-semibold text-navy">Track Shipment</Link>
+          <ContactSupportButton size="sm" className="w-full" />
         </div>
       </div>
     </header>

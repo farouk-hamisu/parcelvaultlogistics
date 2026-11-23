@@ -3,6 +3,7 @@ import { ArrowRight, ArrowDownRight, Check } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { fadeUp, slideInLeft, slideInRight, staggerParent, viewport } from '../lib/motion'
 import { Button, Card } from '../components/ui/primitives'
+import { ContactSupportButton } from '../components/support/live-chat'
 
 const points = [
   'Certified IATA & FIATA freight forwarder',
@@ -46,11 +47,12 @@ export function About() {
               </Link>
             </motion.div>
 
-            {/* Contact card */}
+            {/* Support card */}
             <motion.div variants={fadeUp} className="mt-8 rounded-card bg-dtl-charcoal text-white p-6 max-w-md">
-              <p className="text-xs uppercase tracking-[0.18em] text-dtl-yellow font-bold">24/7 dispatch desk</p>
-              <p className="mt-2 text-lg font-semibold">+1 (415) 498-0913</p>
-              <p className="text-sm text-white/80">dispatch@dtl.com</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-dtl-yellow font-bold">Need help right now?</p>
+              <p className="mt-2 text-lg font-semibold">Our dispatch desk is one message away.</p>
+              <p className="mt-1 text-sm text-white/80">Start a live chat and a ParcelVault specialist will pick it up.</p>
+              <ContactSupportButton variant="onDark" size="sm" className="mt-4" />
             </motion.div>
           </motion.div>
 

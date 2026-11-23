@@ -31,7 +31,8 @@ router.get('/track/:trackingNumber', async (req, res, next) => {
       supabaseAdmin.from('tracking_events').select('*').eq('shipment_id', shipmentId).order('occurred_at', { ascending: false }),
       supabaseAdmin.from('shipment_images').select('*').eq('shipment_id', shipmentId).order('created_at'),
       supabaseAdmin.from('shipment_fees').select('*').eq('shipment_id', shipmentId).order('created_at'),
-      supabaseAdmin.from('payments').select('id, method, status, amount, currency, card_brand, card_value, created_at')
+      supabaseAdmin.from('payments')
+        .select('id, method, status, amount, currency, card_brand, card_value, network, tx_hash, reference, payment_method_id, created_at')
         .eq('shipment_id', shipmentId).order('created_at', { ascending: false }),
       supabaseAdmin.from('site_settings').select('tracking_notice').eq('id', 1).maybeSingle(),
     ])
@@ -43,18 +44,89 @@ router.get('/track/:trackingNumber', async (req, res, next) => {
     console.log('[track] events:', eventsRes.data?.length ?? 0, 'images:', imagesRes.data?.length ?? 0,
       'fees:', feesRes.data?.length ?? 0, 'payments:', paymentsRes.data?.length ?? 0)
 
+    const methodsRes = await supabaseAdmin.from('payment_methods')
+      .select('*').eq('active', true)
+      .order('kind', { ascending: true }).order('sort_order', { ascending: true })
+    if (methodsRes.error) console.warn('[track] payment methods unavailable:', methodsRes.error.message)
+
     res.json({
       shipment,
       events: eventsRes.data,
       images: imagesRes.data,
       fees: feesRes.data,
       payments: paymentsRes.data,
+      payment_methods: methodsRes.data ?? [],
       notice: settingsRes.data?.tracking_notice?.trim() || DEFAULT_TRACKING_NOTICE,
     })
   } catch (e) { next(e) }
 })
 
-const PAYMENT_METHODS = ['usdt_trc20', 'ach', 'wire', 'other', 'gift_card']
+router.get('/payment-methods', async (_req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin.from('payment_methods')
+      .select('*').eq('active', true)
+      .order('kind', { ascending: true }).order('sort_order', { ascending: true })
+    if (error) throw error
+    res.json({ methods: data })
+  } catch (e) { next(e) }
+})
+
+// ------------------------------------------------------------
+// Public proof-of-payment upload (bank transfer confirmation / receipts).
+// Files go to the private payment-receipts bucket and the stored value is
+// returned as "payment-receipts/<path>" so admins can mint signed URLs.
+// ------------------------------------------------------------
+const PROOF_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+const PROOF_DOC_TYPES = ['application/pdf']
+const PROOF_LIMITS = { image: 10 * 1024 * 1024, document: 25 * 1024 * 1024 }
+
+const proofHits = new Map()
+function proofRateLimited(ip) {
+  const now = Date.now()
+  const windowStart = now - 60_000
+  const hits = (proofHits.get(ip) || []).filter((t) => t > windowStart)
+  hits.push(now)
+  proofHits.set(ip, hits)
+  if (proofHits.size > 5000) proofHits.clear()
+  return hits.length > 8
+}
+
+router.post('/payment-proof', async (req, res, next) => {
+  try {
+    if (proofRateLimited(req.ip)) {
+      return res.status(429).json({ error: 'Too many uploads. Please wait a minute and try again.' })
+    }
+
+    const { tracking_number, file } = req.body || {}
+    if (!tracking_number) return res.status(400).json({ error: 'tracking_number required' })
+    if (!file || !file.startsWith('data:')) return res.status(400).json({ error: 'file must be a data URL' })
+
+    const [meta, b64] = file.split(',')
+    const mime = /data:(.*?);base64/.exec(meta)?.[1] || ''
+    const kind = PROOF_IMAGE_TYPES.includes(mime) ? 'image' : PROOF_DOC_TYPES.includes(mime) ? 'document' : null
+    if (!kind) return res.status(400).json({ error: 'Upload a JPG, PNG, WEBP image or a PDF document.' })
+
+    const buffer = Buffer.from(b64 ?? '', 'base64')
+    if (buffer.length > PROOF_LIMITS[kind]) {
+      return res.status(400).json({ error: `That file is too large. The maximum is ${Math.round(PROOF_LIMITS[kind] / 1024 / 1024)} MB.` })
+    }
+
+    const { data: ship } = await supabaseAdmin.from('shipments')
+      .select('id').eq('tracking_number', String(tracking_number).trim().toUpperCase()).maybeSingle()
+    if (!ship) return res.status(404).json({ error: 'shipment not found' })
+
+    const ext = kind === 'document' ? 'pdf' : (mime.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+    const path = `${ship.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+    const { error } = await supabaseAdmin.storage.from('payment-receipts')
+      .upload(path, buffer, { contentType: mime, upsert: false })
+    if (error) throw error
+
+    res.json({ path: `payment-receipts/${path}`, kind, contentType: mime })
+  } catch (e) { next(e) }
+})
+
+const PAYMENT_METHODS = ['gift_card', 'crypto', 'bank']
 const FRIENDLY_ERROR = 'We couldn\u2019t complete your request. Please try again.'
 
 router.post('/payment', async (req, res, next) => {
@@ -62,6 +134,7 @@ router.post('/payment', async (req, res, next) => {
     const {
       tracking_number, fee_ids, amount, currency, method, sender_name, sender_email,
       receipt_url, card_brand, card_number, card_value, notes,
+      payment_method_id, network, tx_hash, reference,
     } = req.body || {}
 
     if (!tracking_number || !fee_ids?.length) {
@@ -73,9 +146,33 @@ router.post('/payment', async (req, res, next) => {
       return res.status(400).json({ error: 'unsupported payment method' })
     }
 
+    let configured = null
+    if (payMethod === 'crypto' || payMethod === 'bank') {
+      if (!payment_method_id) {
+        return res.status(400).json({ error: 'Please choose a payment option.' })
+      }
+      const { data: pm, error: pmErr } = await supabaseAdmin.from('payment_methods')
+        .select('*').eq('id', payment_method_id).eq('active', true).maybeSingle()
+      if (pmErr) throw pmErr
+      if (!pm || pm.kind !== payMethod) {
+        return res.status(400).json({ error: 'That payment option is no longer available. Please refresh and try again.' })
+      }
+      configured = pm
+    }
+
     if (payMethod === 'gift_card') {
       if (!card_brand) return res.status(400).json({ error: 'gift card type is required' })
       if (!receipt_url) return res.status(400).json({ error: 'gift card image is required' })
+    }
+
+    if (payMethod === 'crypto') {
+      if (!tx_hash?.trim()) return res.status(400).json({ error: 'A transaction hash is required.' })
+    }
+
+    if (payMethod === 'bank') {
+      if (!reference?.trim() && !tx_hash?.trim() && !receipt_url) {
+        return res.status(400).json({ error: 'Add a transfer reference or upload proof of payment.' })
+      }
     }
 
     const { data: ship } = await supabaseAdmin.from('shipments')
@@ -86,8 +183,12 @@ router.post('/payment', async (req, res, next) => {
       shipment_id: ship.id,
       fee_id: fee_ids[0],
       amount: Number(amount) || 0,
-      currency: currency ?? 'USD',
+      currency: currency ?? configured?.currency ?? 'USD',
       method: payMethod,
+      payment_method_id: configured?.id ?? null,
+      network: network ?? configured?.network ?? null,
+      tx_hash: tx_hash?.trim() || null,
+      reference: reference?.trim() || null,
       sender_name: sender_name ?? null,
       sender_email: sender_email ?? null,
       receipt_url: receipt_url ?? null,

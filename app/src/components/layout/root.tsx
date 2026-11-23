@@ -2,6 +2,7 @@ import { Outlet, useLocation } from '@tanstack/react-router'
 import { Suspense, useEffect } from 'react'
 import { Header } from './header'
 import { Footer } from './footer'
+import { LiveChat } from '../support/live-chat'
 
 const TITLES: Record<string, string> = {
   '/': 'Premium International Shipping & Logistics',
@@ -31,8 +32,11 @@ export function RootLayout() {
     document.title = page ? `${page} — ParcelVault Logistics` : 'ParcelVault Logistics'
   }, [location.pathname])
 
+  const isAdmin = location.pathname.startsWith('/admin')
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      {!isAdmin && <LiveChat />}
       <Header />
       <main className="flex-1">
         <Suspense fallback={

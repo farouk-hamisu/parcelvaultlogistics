@@ -8,7 +8,7 @@ const router = Router()
 router.get('/', authUser, requireAdmin, async (_req, res, next) => {
   try {
     const { data, error } = await supabaseAdmin.from('payments')
-      .select('*, shipments(tracking_number), shipment_fees(name), customer:profiles!customer_id(full_name, email), verifier:profiles!verified_by(full_name, email)')
+      .select('*, shipments(tracking_number), shipment_fees(name), payment_methods(name, network, kind), customer:profiles!customer_id(full_name, email), verifier:profiles!verified_by(full_name, email)')
       .order('created_at', { ascending: false })
     if (error) throw error
     res.json({ payments: data })

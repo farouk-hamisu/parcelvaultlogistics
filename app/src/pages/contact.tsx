@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { SectionLabel } from '../sections/_section'
 import { PublicApi } from '../lib/api'
 import { Button, Input, Textarea, Label } from '../components/ui/primitives'
+import { ContactSupportButton } from '../components/support/live-chat'
 
 export function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', message: '' })
@@ -34,6 +35,15 @@ export function ContactPage() {
       </section>
       <section className="mx-auto max-w-[1320px] px-6 py-20">
         <div className="max-w-xl mx-auto">
+          <div className="mb-8 rounded-card bg-dtl-charcoal p-6 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-dtl-yellow">Need a faster answer?</p>
+                <p className="mt-1 text-lg font-semibold">Chat with customer support right now.</p>
+              </div>
+              <ContactSupportButton variant="onDark" size="sm" icon="headset" />
+            </div>
+          </div>
           {done ? (
             <div className="rounded-card bg-dtl-light-gray p-12 text-center ring-1 ring-dtl-border">
               <p className="text-xl font-bold text-dtl-black">Message sent!</p>
