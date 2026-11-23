@@ -19,6 +19,7 @@ const envOrigins = (process.env.CLIENT_ORIGIN || '')
 const allowedOrigins = new Set([
   'https://parcelvaultlogistics.vercel.app',
   'https://www.parcelvaultlogistics.vercel.app',
+  'https://www.parcelvaultlogistics.com',
   'https://diamondthrivelogisticss.vercel.app',
   'https://www.diamondthrivelogisticss.vercel.app',
   'http://localhost:5173',

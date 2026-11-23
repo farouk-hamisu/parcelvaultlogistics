@@ -2,4 +2,4 @@
 
 update public.profiles
 set role = 'admin'
-where email = 'hamisuf29@gmail.com';
+where email = 'eriboyerison@gmail.com';
