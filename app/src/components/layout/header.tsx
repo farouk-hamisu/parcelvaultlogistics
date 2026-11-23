@@ -86,7 +86,6 @@ export function Header() {
           ))}
           <hr className="my-3 border-border" />
           <Link to="/track" onClick={() => setOpen(false)} className="rounded-pill bg-primary px-4 py-2.5 text-center text-sm font-semibold text-navy">Track Shipment</Link>
-          <ContactSupportButton size="sm" className="w-full" />
         </div>
       </div>
     </header>
