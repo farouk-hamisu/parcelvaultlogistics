@@ -31,6 +31,21 @@ const VIDEO_TYPES = [
 
 const DOC_TYPES = ['application/pdf']
 
+// Fallback used when a browser sends an empty MIME type (common for MOV files
+// on some platforms). The file extension is still trustworthy for storage.
+const MIME_BY_EXTENSION = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  ogv: 'video/ogg',
+  ogg: 'video/ogg',
+  pdf: 'application/pdf',
+}
+
 const MB = 1024 * 1024
 
 const LIMITS = {
@@ -73,17 +88,21 @@ router.post('/sign', authUser, requireAdmin, async (req, res, next) => {
       return res.status(400).json({error: 'unknown bucket'})
     }
 
-    const mime = contentType || 'application/octet-stream'
+    const safePath = sanitizePath(
+      path || `${req.user.id}/${Date.now()}-${randomSuffix()}`
+    )
+
+    const ext = (safePath.split('.').pop() || '').toLowerCase()
+    const declared = String(contentType || '').toLowerCase().split(';')[0].trim()
+    const mime = classify(declared)
+      ? declared
+      : (MIME_BY_EXTENSION[ext] ?? 'application/octet-stream')
 
     if (!classify(mime)) {
       return res.status(400).json({
         error: 'Unsupported file type. Upload a JPG, PNG or WEBP image, an MP4 or WEBM video, or a PDF document.',
       })
     }
-
-    const safePath = sanitizePath(
-      path || `${req.user.id}/${Date.now()}-${randomSuffix()}`
-    )
 
     const {data, error} = await supabaseAdmin.storage
       .from(bucket)

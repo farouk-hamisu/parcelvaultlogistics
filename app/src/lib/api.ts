@@ -91,10 +91,31 @@ export const PaymentMethodsApi = {
   remove: (id: string) => api(`/payment-methods/${id}`, {method: 'DELETE'}),
 }
 
+export const EmailsApi = {
+  templates: () => api(`/emails/templates`),
+  customers: () => api(`/emails/customers`),
+  preview: (b: any) => api(`/emails/preview`, {method: 'POST', body: JSON.stringify(b)}),
+  send: (b: any) => api(`/emails/send`, {method: 'POST', body: JSON.stringify(b)}),
+  messages: (limit = 20) => api(`/emails/messages?limit=${limit}`),
+}
+
 /**
  * Upload a file straight to Supabase Storage using a signed URL, reporting
  * real progress. Falls back to a normal PUT if the browser lacks XHR upload.
  */
+const MIME_BY_EXTENSION: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  ogv: 'video/ogg',
+  ogg: 'video/ogg',
+  pdf: 'application/pdf',
+}
+
 export async function uploadWithProgress(
   bucket: string,
   file: File,
@@ -102,13 +123,18 @@ export async function uploadWithProgress(
 ): Promise<{bucket: string; path: string; url: string}> {
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
   const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const signed = await UploadsApi.sign({bucket, path, contentType: file.type})
+  // Some browsers report an empty MIME type for MOV/OGG files; fall back to
+  // the extension so the API can still validate and accept the upload.
+  const contentType = file.type || MIME_BY_EXTENSION[ext] || 'application/octet-stream'
+  const signed = await UploadsApi.sign({bucket, path, contentType})
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', signed.signedUrl)
+    // Supabase signed upload URLs are consumed with PUT. The token is already
+    // embedded in the signed URL by the server.
+    xhr.open('PUT', signed.signedUrl)
     xhr.setRequestHeader('x-upsert', 'false')
-    if (signed.token) xhr.setRequestHeader('x-up-token', signed.token)
+    xhr.setRequestHeader('Content-Type', contentType)
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100))
     }
@@ -117,7 +143,12 @@ export async function uploadWithProgress(
         onProgress?.(100)
         resolve()
       } else {
-        reject(new Error(`Upload failed (${xhr.status}). Please try again.`))
+        let detail = ''
+        try {
+          const parsed = JSON.parse(xhr.responseText || '{}')
+          detail = parsed?.message || parsed?.error || ''
+        } catch {}
+        reject(new Error(detail || `Upload failed (${xhr.status}). Please try again.`))
       }
     }
     xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'))

@@ -14,6 +14,85 @@ const tables = {
   newsletter_subscribers: [],
 }
 
+// ---------------------------------------------------------------------------
+// Site settings and analytics.
+//
+// IMPORTANT: these routes must be registered BEFORE the generic `/:resource`
+// routes below. Express matches routes in declaration order, so `/settings/site`
+// would otherwise be captured by `/:resource/:id`, where `site` fails the UUID
+// check — which is exactly what used to break "Save delivery notice".
+// ---------------------------------------------------------------------------
+
+// Site settings
+router.get('/settings/site', authUser, async (_req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin.from('site_settings').select('*').eq('id', 1).single()
+    if (error) throw error
+    res.json({ settings: data })
+  } catch (e) { next(e) }
+})
+
+router.patch('/settings/site', authUser, requireAdmin, async (req, res, next) => {
+  try {
+    const allowed = [
+      'site_name','tagline','hero_headline','hero_subheadline','hero_bullets',
+      'contact_email','contact_phone','contact_address','business_hours',
+      'social_facebook','social_twitter','social_linkedin','social_instagram','social_youtube',
+      'usdt_trc20_address','ach_account_holder','ach_bank','ach_account_number','ach_routing_number','ach_account_type','ach_bank_address',
+      'tracking_notice','seo_title','seo_description','seo_keywords',
+    ]
+    const payload = stripFields(req.body, allowed)
+
+    // A NOT NULL protected column must never be set to null/empty by accident.
+    if ('tracking_notice' in payload) {
+      const notice = String(payload.tracking_notice ?? '').trim()
+      if (!notice) return res.status(400).json({ error: 'Notice message cannot be empty.' })
+      payload.tracking_notice = notice
+    }
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ error: 'No settings to update.' })
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('site_settings').update(payload).eq('id', 1).select().single()
+    if (error) throw error
+    if (!data) return res.status(404).json({ error: 'Settings not found.' })
+    res.json({ settings: data })
+  } catch (e) { next(e) }
+})
+
+// Analytics (admin overview)
+router.get('/analytics/overview', authUser, requireAdmin, async (_req, res, next) => {
+  try {
+    const [shipments, payments, fees] = await Promise.all([
+      supabaseAdmin.from('shipments').select('id, status, created_at'),
+      supabaseAdmin.from('payments').select('id, amount, currency, status, created_at'),
+      supabaseAdmin.from('shipment_fees').select('id, amount, status'),
+    ])
+    const errs = [shipments.error, payments.error, fees.error].filter(Boolean)
+    if (errs.length) throw errs[0]
+    const totalRevenue   = payments.data.filter(p => p.status === 'verified').reduce((s, p) => s + Number(p.amount || 0), 0)
+    const outstandingFees = fees.data.filter(f => f.status !== 'paid' && f.status !== 'waived').reduce((s, f) => s + Number(f.amount || 0), 0)
+    const statusCounts = {}
+    for (const s of shipments.data) statusCounts[s.status] = (statusCounts[s.status] || 0) + 1
+    res.json({
+      totals: {
+        shipments: shipments.data.length,
+        payments: payments.data.length,
+        pendingPayments: payments.data.filter(p => p.status === 'pending').length,
+      },
+      totalRevenue,
+      outstandingFees,
+      statusCounts,
+      recentShipments: shipments.data.slice(-10).reverse(),
+    })
+  } catch (e) { next(e) }
+})
+
+// ---------------------------------------------------------------------------
+// Generic content resources
+// ---------------------------------------------------------------------------
+
 // Generic admin listing
 router.get('/:resource', authUser, requireAdmin, async (req, res, next) => {
   try {
@@ -58,59 +137,6 @@ router.delete('/:resource/:id', authUser, requireAdmin, requireUUID('id'), async
     const { error } = await supabaseAdmin.from(resource).delete().eq('id', req.params.id)
     if (error) throw error
     res.json({ ok: true })
-  } catch (e) { next(e) }
-})
-
-// Site settings
-router.get('/settings/site', authUser, async (_req, res, next) => { // public-read settings also acceptable here
-  try {
-    const { data, error } = await supabaseAdmin.from('site_settings').select('*').eq('id', 1).single()
-    if (error) throw error
-    res.json({ settings: data })
-  } catch (e) { next(e) }
-})
-
-router.patch('/settings/site', authUser, requireAdmin, async (req, res, next) => {
-  try {
-    const allowed = [
-      'site_name','tagline','hero_headline','hero_subheadline','hero_bullets',
-      'contact_email','contact_phone','contact_address','business_hours',
-      'social_facebook','social_twitter','social_linkedin','social_instagram','social_youtube',
-      'usdt_trc20_address','ach_account_holder','ach_bank','ach_account_number','ach_routing_number','ach_account_type','ach_bank_address',
-      'tracking_notice','seo_title','seo_description','seo_keywords',
-    ]
-    const payload = stripFields(req.body, allowed)
-    const { data, error } = await supabaseAdmin.from('site_settings').update(payload).eq('id', 1).select().single()
-    if (error) throw error
-    res.json({ settings: data })
-  } catch (e) { next(e) }
-})
-
-// Analytics (admin overview)
-router.get('/analytics/overview', authUser, requireAdmin, async (_req, res, next) => {
-  try {
-    const [shipments, payments, fees] = await Promise.all([
-      supabaseAdmin.from('shipments').select('id, status, created_at'),
-      supabaseAdmin.from('payments').select('id, amount, currency, status, created_at'),
-      supabaseAdmin.from('shipment_fees').select('id, amount, status'),
-    ])
-    const errs = [shipments.error, payments.error, fees.error].filter(Boolean)
-    if (errs.length) throw errs[0]
-    const totalRevenue   = payments.data.filter(p => p.status === 'verified').reduce((s, p) => s + Number(p.amount || 0), 0)
-    const outstandingFees = fees.data.filter(f => f.status !== 'paid' && f.status !== 'waived').reduce((s, f) => s + Number(f.amount || 0), 0)
-    const statusCounts = {}
-    for (const s of shipments.data) statusCounts[s.status] = (statusCounts[s.status] || 0) + 1
-    res.json({
-      totals: {
-        shipments: shipments.data.length,
-        payments: payments.data.length,
-        pendingPayments: payments.data.filter(p => p.status === 'pending').length,
-      },
-      totalRevenue,
-      outstandingFees,
-      statusCounts,
-      recentShipments: shipments.data.slice(-10).reverse(),
-    })
   } catch (e) { next(e) }
 })
 

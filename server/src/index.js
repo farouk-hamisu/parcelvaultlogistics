@@ -8,6 +8,7 @@ import authRouter from './routes/auth.js'
 import publicRouter from './routes/public.js'
 import uploadsRouter from './routes/uploads.js'
 import paymentMethodsRouter from './routes/payment-methods.js'
+import emailsRouter from './routes/emails.js'
 
 const app = express()
 
@@ -68,6 +69,7 @@ app.use('/api/payments', paymentsRouter)
 app.use('/api/content', contentRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/payment-methods', paymentMethodsRouter)
+app.use('/api/emails', emailsRouter)
 
 app.use((err, _req, res, _next) => {
   console.error('[api:error]', err.message)

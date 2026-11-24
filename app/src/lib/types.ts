@@ -162,6 +162,45 @@ export type MediaFile = {
   metadata?: { mimetype?: string; size?: number } | null
 }
 
+export type EmailTemplate = {
+  id: string
+  key: string
+  name: string
+  description?: string | null
+  category: string
+  subject: string
+  body: string
+  sort_order: number
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type EmailCustomer = {
+  id: string
+  full_name?: string | null
+  email: string
+  company?: string | null
+  role: Role
+  is_active: boolean
+  created_at: string
+}
+
+export type EmailSendStatus = 'sent' | 'failed'
+
+export type EmailMessage = {
+  id: string
+  customer_id?: string | null
+  recipient_email: string
+  recipient_name?: string | null
+  subject: string
+  template_key?: string | null
+  status: EmailSendStatus
+  provider_id?: string | null
+  error?: string | null
+  created_at: string
+}
+
 export type ShipmentImage = {
   id: string
   shipment_id: string

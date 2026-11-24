@@ -13,5 +13,13 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: support@parcelvaultlogistics.com
+      - key: SUPPORT_EMAIL
+        value: support@parcelvaultlogistics.com
+      - key: PUBLIC_SITE_URL
+        value: https://www.parcelvaultlogistics.com
       - key: NODE_VERSION
         value: 22

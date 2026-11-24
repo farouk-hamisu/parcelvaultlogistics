@@ -8,7 +8,7 @@ import { GalleryPage } from '../pages/gallery'
 import { ContactPage } from '../pages/contact'
 import { QuotePage } from '../pages/quote'
 import { AdminLoginPage } from '../pages/admin-login'
-import { AdminLayout, AdminOverview, AdminShipments, AdminShipment, AdminPayments, AdminContent, AdminNotice, AdminSettings, AdminMedia, AdminPaymentMethods } from '../pages/admin'
+import { AdminLayout, AdminOverview, AdminShipments, AdminShipment, AdminPayments, AdminContent, AdminNotice, AdminSettings, AdminMedia, AdminPaymentMethods, AdminEmails } from '../pages/admin'
 
 function TrackLayout() { return <Outlet /> }
 
@@ -33,6 +33,7 @@ const adminPayments = createRoute({ getParentRoute: () => adminLayout, path: 'pa
 const adminPaymentMethods = createRoute({ getParentRoute: () => adminLayout, path: 'payment-methods', component: AdminPaymentMethods })
 const adminContent = createRoute({ getParentRoute: () => adminLayout, path: 'content', component: AdminContent })
 const adminNotice = createRoute({ getParentRoute: () => adminLayout, path: 'notice', component: AdminNotice })
+const adminEmails = createRoute({ getParentRoute: () => adminLayout, path: 'emails', component: AdminEmails })
 const adminMedia = createRoute({ getParentRoute: () => adminLayout, path: 'media', component: AdminMedia })
 const adminSettings = createRoute({ getParentRoute: () => adminLayout, path: 'settings', component: AdminSettings })
 
@@ -40,7 +41,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     home, trackLayout.addChildren([trackIndex, trackResult]), services, about, gallery, contact, quote, adminLogin,
     adminLayout.addChildren([
-      adminHome, adminShipments, adminShipment, adminPayments, adminPaymentMethods, adminContent, adminNotice, adminMedia, adminSettings,
+      adminHome, adminShipments, adminShipment, adminPayments, adminPaymentMethods, adminContent, adminNotice, adminEmails, adminMedia, adminSettings,
     ]),
   ]),
   defaultPreload: 'intent',

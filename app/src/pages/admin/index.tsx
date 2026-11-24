@@ -7,7 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import {
   LayoutDashboard, Package, Wallet, FileText, Image as ImageIcon, Settings, LogOut, Plus, Trash2, ChevronRight,
   MapPin, Calendar, Truck, AlertCircle, CheckCircle2, Clock, X, Edit3, Save, Search, Upload, ExternalLink, Globe, Megaphone,
-  Bitcoin, FileWarning, FileVideo, FileImage, Download,
+  Bitcoin, FileWarning, FileVideo, FileImage, Download, Mail,
 } from 'lucide-react'
 import { LogoMark } from '../../components/layout/header'
 import {
@@ -19,6 +19,7 @@ import type { Shipment, TrackingEvent, Fee, ShipmentImage, Profile, Payment, Ser
 import { uploadWithProgress } from '../../lib/api'
 
 export { AdminPaymentMethods } from './payment-methods'
+export { AdminEmails } from './emails'
 
 const sidebarLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Overview' },
@@ -27,6 +28,7 @@ const sidebarLinks = [
   { to: '/admin/payment-methods', icon: Bitcoin, label: 'Payment methods' },
   { to: '/admin/content', icon: FileText, label: 'Content' },
   { to: '/admin/notice', icon: Megaphone, label: 'Delivery notice' },
+  { to: '/admin/emails', icon: Mail, label: 'Email templates' },
   { to: '/admin/media', icon: ImageIcon, label: 'Media' },
   { to: '/admin/settings', icon: Settings, label: 'Settings' },
 ]
@@ -305,6 +307,64 @@ export function AdminOverview() {
   )
 }
 
+type ShipmentMediaKind = 'image' | 'video' | 'document'
+type ShipmentMediaSelection = { file: File; kind: ShipmentMediaKind; previewUrl: string | null }
+type MediaProgress = { index: number; total: number; percent: number; name: string }
+type Feedback = { kind: 'success' | 'error'; text: string }
+
+const SHIPMENT_MEDIA_ACCEPT = 'image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/ogg,application/pdf'
+
+const EXTENSION_KINDS: Record<string, ShipmentMediaKind> = {
+  jpg: 'image', jpeg: 'image', png: 'image', webp: 'image',
+  mp4: 'video', webm: 'video', mov: 'video', ogv: 'video', ogg: 'video',
+  pdf: 'document',
+}
+
+function shipmentMediaKind(file: File): ShipmentMediaKind | null {
+  const type = (file.type || '').toLowerCase()
+  if (['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(type)) return 'image'
+  if (['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg'].includes(type)) return 'video'
+  if (type === 'application/pdf') return 'document'
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
+  return EXTENSION_KINDS[ext] ?? null
+}
+
+function validateShipmentMedia(file: File, kind: ShipmentMediaKind): string | null {
+  const mb = 1024 * 1024
+  if (kind === 'image' && file.size > 10 * mb) return 'image is too large (maximum 10 MB).'
+  if (kind === 'video' && file.size > 100 * mb) return 'video is too large (maximum 100 MB).'
+  if (kind === 'document' && file.size > 25 * mb) return 'PDF is too large (maximum 25 MB).'
+  return null
+}
+
+function releaseMedia(items: ShipmentMediaSelection[]) {
+  for (const item of items) if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+}
+
+function MediaThumb({ item, onRemove }: { item: ShipmentMediaSelection; onRemove?: () => void }) {
+  return (
+    <div className="relative overflow-hidden rounded-lg ring-1 ring-dtl-border bg-white">
+      {item.kind === 'image' && item.previewUrl ? (
+        <img src={item.previewUrl} alt={item.file.name} className="h-24 w-full object-cover" />
+      ) : item.kind === 'video' && item.previewUrl ? (
+        <video src={item.previewUrl} muted playsInline preload="metadata" className="h-24 w-full bg-navy object-cover" />
+      ) : (
+        <div className="flex h-24 w-full flex-col items-center justify-center gap-1 bg-dtl-light-gray text-dtl-charcoal">
+          <FileWarning className="size-6 text-primary-dark" />
+          <span className="text-[10px] font-bold uppercase tracking-wide">PDF</span>
+        </div>
+      )}
+      <p className="truncate px-2 py-1 text-[11px] text-dtl-charcoal" title={item.file.name}>{item.file.name}</p>
+      {onRemove && (
+        <button type="button" onClick={onRemove} aria-label={`Remove ${item.file.name}`}
+          className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-white/90 text-danger shadow hover:bg-white">
+          <X className="size-3" />
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function AdminShipments() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-shipments'],
@@ -314,30 +374,58 @@ export function AdminShipments() {
   const shipments: Shipment[] = (data as any)?.shipments ?? []
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<any>({})
-  const [createImageFiles, setCreateImageFiles] = useState<File[]>([])
-  const [createImagePreviews, setCreateImagePreviews] = useState<string[]>([])
+  const [createMedia, setCreateMedia] = useState<ShipmentMediaSelection[]>([])
+  const [createProgress, setCreateProgress] = useState<MediaProgress | null>(null)
+  const [createFeedback, setCreateFeedback] = useState<Feedback | null>(null)
   const queryClient = useQueryClient()
+
+  const clearCreateMedia = () => {
+    releaseMedia(createMedia)
+    setCreateMedia([])
+  }
 
   const createMut = useMutation({
     mutationFn: async (b: any) => {
       const result = await ShipmentsApi.create(b)
       const shipmentId = (result as any)?.shipment?.id
-      if (shipmentId && createImageFiles.length > 0) {
-        for (const file of createImageFiles) {
-          const dataUrl = await fileToDataUrl(file)
-          const up = await UploadsApi.direct({ bucket: 'shipment-images', file: dataUrl, public: true })
-          await ShipmentsApi.addImage(shipmentId, { url: up.url, caption: '', kind: 'progress' })
+      let uploadError = ''
+
+      if (shipmentId && createMedia.length > 0) {
+        for (let index = 0; index < createMedia.length; index++) {
+          const item = createMedia[index]
+          try {
+            setCreateProgress({ index: index + 1, total: createMedia.length, percent: 0, name: item.file.name })
+            const up = await uploadWithProgress('shipment-images', item.file, (percent) => {
+              setCreateProgress({ index: index + 1, total: createMedia.length, percent, name: item.file.name })
+            })
+            await ShipmentsApi.addImage(shipmentId, {
+              url: up.url,
+              caption: '',
+              kind: item.kind === 'document' ? 'document' : 'progress',
+            })
+          } catch (err: any) {
+            uploadError = uploadError
+              ? `${uploadError} ${item.file.name}: ${err?.message || 'upload failed.'}`
+              : `${item.file.name}: ${err?.message || 'upload failed.'}`
+          }
         }
       }
-      return result
+
+      return { result, uploadError }
     },
-    onSuccess: () => {
+    onSuccess: ({ uploadError }: any) => {
       queryClient.invalidateQueries({ queryKey: ['admin-shipments'] })
       setShowCreate(false)
       setForm({})
-      setCreateImageFiles([])
-      setCreateImagePreviews([])
+      clearCreateMedia()
+      setCreateProgress(null)
+      setCreateFeedback(
+        uploadError
+          ? { kind: 'error', text: `Shipment was created, but some media could not be uploaded. ${uploadError}` }
+          : { kind: 'success', text: 'Shipment created successfully.' },
+      )
     },
+    onError: () => setCreateProgress(null),
   })
 
   const deleteMut = useMutation({
@@ -350,49 +438,90 @@ export function AdminShipments() {
 
   const set = (key: string, value: any) => setForm((prev: any) => ({ ...prev, [key]: value }))
 
-  const handleCreateImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCreateMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    setCreateImageFiles(prev => [...prev, ...files])
-    files.forEach(file => {
-      const reader = new FileReader()
-      reader.onload = () => setCreateImagePreviews(prev => [...prev, reader.result as string])
-      reader.readAsDataURL(file)
-    })
+    e.target.value = ''
+    if (files.length === 0) return
+
+    const additions: ShipmentMediaSelection[] = []
+    const errors: string[] = []
+
+    for (const file of files) {
+      const kind = shipmentMediaKind(file)
+      const problem = kind ? validateShipmentMedia(file, kind) : 'Unsupported file type.'
+      if (problem || !kind) {
+        errors.push(`${file.name}: ${problem ?? 'unsupported file type.'}`)
+        continue
+      }
+      additions.push({
+        file,
+        kind,
+        previewUrl: kind === 'document' ? null : URL.createObjectURL(file),
+      })
+    }
+
+    if (additions.length > 0) setCreateMedia(prev => [...prev, ...additions])
+    setCreateFeedback(errors.length
+      ? { kind: 'error', text: errors.join(' ') }
+      : null)
   }
 
-  const removeCreateImage = (index: number) => {
-    setCreateImageFiles(prev => prev.filter((_, i) => i !== index))
-    setCreateImagePreviews(prev => prev.filter((_, i) => i !== index))
+  const removeCreateMedia = (index: number) => {
+    setCreateMedia(prev => {
+      const item = prev[index]
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl)
+      return prev.filter((_, i) => i !== index)
+    })
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-dtl-black">Shipments</h1>
-        <Button onClick={() => setShowCreate(true)}><Plus className="size-4" /> New shipment</Button>
+        <Button onClick={() => { setShowCreate(true); setCreateFeedback(null) }}><Plus className="size-4" /> New shipment</Button>
       </div>
+
+      {createFeedback && showCreate && (
+        <div className={`mb-4 flex items-start gap-2 rounded-card p-4 text-sm ${
+          createFeedback.kind === 'error' ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success'
+        }`}>
+          {createFeedback.kind === 'error'
+            ? <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            : <CheckCircle2 className="mt-0.5 size-4 shrink-0" />}
+          <span className="min-w-0 break-words">{createFeedback.text}</span>
+        </div>
+      )}
 
       {showCreate && (
         <Card className="p-6 mb-8">
           <h3 className="text-lg font-bold text-dtl-black mb-4">Create shipment</h3>
-          <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); createMut.mutate(form) }} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); setCreateFeedback(null); createMut.mutate(form) }} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <ShipmentFields value={form} onChange={set} includeTracking />
 
             <div className="sm:col-span-2 lg:col-span-3">
-              <label className="block text-xs font-semibold text-dtl-charcoal mb-2">Shipment images (optional)</label>
-              <input multiple type="file" accept="image/*" onChange={handleCreateImageSelect}
+              <label className="block text-xs font-semibold text-dtl-charcoal mb-2">Shipment media (optional)</label>
+              <input multiple type="file" accept={SHIPMENT_MEDIA_ACCEPT} onChange={handleCreateMediaSelect}
                 className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary-dark hover:file:bg-primary/20" />
-              {createImagePreviews.length > 0 && (
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 mt-3">
-                  {createImagePreviews.map((preview, i) => (
-                    <div key={i} className="relative rounded-lg overflow-hidden ring-1 ring-dtl-border">
-                      <img src={preview} alt="" className="w-full h-20 object-cover" />
-                      <button type="button" onClick={() => removeCreateImage(i)}
-                        className="absolute top-1 right-1 size-6 rounded-full bg-white/90 flex items-center justify-center text-danger shadow hover:bg-white">
-                        <X className="size-3" />
-                      </button>
-                    </div>
+              <p className="mt-1.5 text-xs text-dtl-charcoal/70">
+                Images: JPG, PNG, WEBP up to 10 MB · Videos: MP4, WEBM, MOV up to 100 MB · Documents: PDF up to 25 MB
+              </p>
+
+              {createMedia.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                  {createMedia.map((item, i) => (
+                    <MediaThumb key={`${item.file.name}-${i}`} item={item} onRemove={() => removeCreateMedia(i)} />
                   ))}
+                </div>
+              )}
+
+              {createProgress && createMut.isPending && (
+                <div className="mt-3">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-dtl-light-gray ring-1 ring-dtl-border">
+                    <div className="h-full rounded-full bg-primary transition-all duration-200" style={{ width: `${createProgress.percent}%` }} />
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-primary-dark">
+                    Uploading {createProgress.index} of {createProgress.total}: {createProgress.name} ({createProgress.percent}%)
+                  </p>
                 </div>
               )}
             </div>
@@ -402,11 +531,24 @@ export function AdminShipments() {
             )}
 
             <div className="flex gap-2">
-              <Button type="submit" disabled={createMut.isPending}>{createMut.isPending ? 'Creating…' : 'Create'}</Button>
-              <Button type="button" variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button type="submit" disabled={createMut.isPending}>
+                {createMut.isPending ? <><Spinner className="size-4" /> Creating…</> : 'Create'}
+              </Button>
+              <Button type="button" variant="ghost" disabled={createMut.isPending} onClick={() => { setShowCreate(false); setCreateFeedback(null); clearCreateMedia(); setForm({}) }}>Cancel</Button>
             </div>
           </form>
         </Card>
+      )}
+
+      {createFeedback && !showCreate && (
+        <div className={`mb-4 flex items-start gap-2 rounded-card p-4 text-sm ${
+          createFeedback.kind === 'error' ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success'
+        }`}>
+          {createFeedback.kind === 'error'
+            ? <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            : <CheckCircle2 className="mt-0.5 size-4 shrink-0" />}
+          <span className="min-w-0 break-words">{createFeedback.text}</span>
+        </div>
       )}
 
       {isLoading && <Spinner />}
@@ -471,10 +613,11 @@ export function AdminShipment() {
   const navigate = useNavigate()
   const [newEvent, setNewEvent] = useState({ status: '', location_label: '', note: '', occurred_at: '', lat: '', lng: '' })
   const [newFee, setNewFee] = useState({ name: '', description: '', amount: 0, currency: 'USD', status: 'unpaid' as const, due_date: '', notes: '' })
-  const [imageFiles, setImageFiles] = useState<File[]>([])
-  const [imagePreviews, setImagePreviews] = useState<string[]>([])
-  const [imageCaption, setImageCaption] = useState('')
-  const [imageKind, setImageKind] = useState('progress')
+  const [mediaFiles, setMediaFiles] = useState<ShipmentMediaSelection[]>([])
+  const [mediaCaption, setMediaCaption] = useState('')
+  const [mediaKindState, setMediaKindState] = useState('progress')
+  const [mediaProgress, setMediaProgress] = useState<MediaProgress | null>(null)
+  const [mediaFeedback, setMediaFeedback] = useState<Feedback | null>(null)
   const [editingShipment, setEditingShipment] = useState(false)
   const [shipmentForm, setShipmentForm] = useState<any>({})
 
@@ -531,21 +674,36 @@ export function AdminShipment() {
   const uploadImagesMut = useMutation({
     mutationFn: async () => {
       if (!id) throw new Error('missing id')
+      if (mediaFiles.length === 0) throw new Error('Choose at least one file to upload.')
       const results = []
-      for (const file of imageFiles) {
-        const dataUrl = await fileToDataUrl(file)
-        const up = await UploadsApi.direct({ bucket: 'shipment-images', file: dataUrl, public: true })
-        const img = await ShipmentsApi.addImage(id, { url: up.url, caption: imageCaption, kind: imageKind })
+      for (let index = 0; index < mediaFiles.length; index++) {
+        const item = mediaFiles[index]
+        setMediaProgress({ index: index + 1, total: mediaFiles.length, percent: 0, name: item.file.name })
+        const up = await uploadWithProgress('shipment-images', item.file, (percent) => {
+          setMediaProgress({ index: index + 1, total: mediaFiles.length, percent, name: item.file.name })
+        })
+        const img = await ShipmentsApi.addImage(id, {
+          url: up.url,
+          caption: mediaCaption,
+          kind: mediaKindState,
+        })
         results.push(img)
       }
       return results
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-shipment', id] })
-      setImageFiles([])
-      setImagePreviews([])
-      setImageCaption('')
-      setImageKind('progress')
+      queryClient.invalidateQueries({ queryKey: ['track'] })
+      releaseMedia(mediaFiles)
+      setMediaFiles([])
+      setMediaCaption('')
+      setMediaKindState('progress')
+      setMediaProgress(null)
+      setMediaFeedback({ kind: 'success', text: 'Media uploaded and attached to this shipment.' })
+    },
+    onError: (err: any) => {
+      setMediaProgress(null)
+      setMediaFeedback({ kind: 'error', text: err?.message || 'Upload failed. Please try again.' })
     },
   })
 
@@ -568,19 +726,38 @@ export function AdminShipment() {
   const setFee = (k: string, v: any) => setNewFee((prev: any) => ({ ...prev, [k]: v }))
   const setShip = (k: string, v: any) => setShipmentForm((prev: any) => ({ ...prev, [k]: v }))
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    setImageFiles(prev => [...prev, ...files])
-    files.forEach(file => {
-      const reader = new FileReader()
-      reader.onload = () => setImagePreviews(prev => [...prev, reader.result as string])
-      reader.readAsDataURL(file)
-    })
+    e.target.value = ''
+    if (files.length === 0) return
+
+    const additions: ShipmentMediaSelection[] = []
+    const errors: string[] = []
+
+    for (const file of files) {
+      const kind = shipmentMediaKind(file)
+      const problem = kind ? validateShipmentMedia(file, kind) : 'Unsupported file type.'
+      if (problem || !kind) {
+        errors.push(`${file.name}: ${problem ?? 'unsupported file type.'}`)
+        continue
+      }
+      additions.push({
+        file,
+        kind,
+        previewUrl: kind === 'document' ? null : URL.createObjectURL(file),
+      })
+    }
+
+    if (additions.length > 0) setMediaFiles(prev => [...prev, ...additions])
+    setMediaFeedback(errors.length ? { kind: 'error', text: errors.join(' ') } : null)
   }
 
-  const removeSelectedImage = (index: number) => {
-    setImageFiles(prev => prev.filter((_, i) => i !== index))
-    setImagePreviews(prev => prev.filter((_, i) => i !== index))
+  const removeSelectedMedia = (index: number) => {
+    setMediaFiles(prev => {
+      const item = prev[index]
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl)
+      return prev.filter((_, i) => i !== index)
+    })
   }
 
   const presetFees = [
@@ -733,44 +910,78 @@ export function AdminShipment() {
       </Card>
 
       <Card className="p-6">
-        <h3 className="text-lg font-bold text-dtl-black mb-4 flex items-center gap-2"><ImageIcon className="size-5" /> Images</h3>
+        <h3 className="text-lg font-bold text-dtl-black mb-4 flex items-center gap-2"><ImageIcon className="size-5" /> Shipment media</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-          {images.map(img => (
-            <div key={img.id} className="relative group rounded-xl overflow-hidden ring-1 ring-dtl-border">
-              <img src={img.url} alt={img.caption || ''} className="w-full h-28 object-cover" />
-              {img.caption && <p className="text-xs text-dtl-charcoal p-2 bg-white">{img.caption}</p>}
-              <button onClick={() => delImgMut.mutate(img.id)}
-                className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-danger opacity-0 group-hover:opacity-100 transition shadow">
-                <Trash2 className="size-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {imagePreviews.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-            {imagePreviews.map((preview, i) => (
-              <div key={i} className="relative rounded-xl overflow-hidden ring-1 ring-dtl-border">
-                <img src={preview} alt="" className="w-full h-28 object-cover" />
-                <button onClick={() => removeSelectedImage(i)}
-                  className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-danger shadow">
-                  <X className="size-3.5" />
+          {images.map(img => {
+            const kind = mediaKind(img.url)
+            return (
+              <div key={img.id} className="relative group rounded-xl overflow-hidden ring-1 ring-dtl-border bg-white">
+                {kind === 'video' ? (
+                  <video src={img.url} controls preload="metadata" className="w-full h-28 bg-navy object-cover" />
+                ) : kind === 'document' ? (
+                  <a href={img.url} target="_blank" rel="noopener noreferrer"
+                    className="flex h-28 w-full flex-col items-center justify-center gap-1 bg-dtl-light-gray text-dtl-charcoal hover:bg-primary-soft transition">
+                    <FileWarning className="size-7 text-primary-dark" />
+                    <span className="text-[11px] font-bold uppercase tracking-wide">View PDF</span>
+                  </a>
+                ) : (
+                  <a href={img.url} target="_blank" rel="noopener noreferrer">
+                    <img src={img.url} alt={img.caption || ''} className="w-full h-28 object-cover" />
+                  </a>
+                )}
+                {img.caption && <p className="text-xs text-dtl-charcoal p-2 bg-white">{img.caption}</p>}
+                <button onClick={() => delImgMut.mutate(img.id)} aria-label="Delete media"
+                  className="absolute top-2 right-2 size-7 rounded-full bg-white/90 flex items-center justify-center text-danger opacity-0 group-hover:opacity-100 focus:opacity-100 transition shadow">
+                  <Trash2 className="size-3.5" />
                 </button>
               </div>
+            )
+          })}
+          {images.length === 0 && <p className="col-span-full text-sm text-dtl-charcoal">No media yet.</p>}
+        </div>
+
+        {mediaFiles.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            {mediaFiles.map((item, i) => (
+              <MediaThumb key={`${item.file.name}-${i}`} item={item} onRemove={() => removeSelectedMedia(i)} />
             ))}
           </div>
         )}
 
-        <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); uploadImagesMut.mutate() }}
-          className="flex flex-wrap gap-3 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Upload images</label>
-            <input multiple type="file" accept="image/*" onChange={handleImageSelect}
-              className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary-dark hover:file:bg-primary/20" />
+        {mediaProgress && uploadImagesMut.isPending && (
+          <div className="mb-4">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-dtl-light-gray ring-1 ring-dtl-border">
+              <div className="h-full rounded-full bg-primary transition-all duration-200" style={{ width: `${mediaProgress.percent}%` }} />
+            </div>
+            <p className="mt-1 text-xs font-semibold text-primary-dark">
+              Uploading {mediaProgress.index} of {mediaProgress.total}: {mediaProgress.name} ({mediaProgress.percent}%)
+            </p>
           </div>
-          <input placeholder="Caption" value={imageCaption} onChange={(e: any) => setImageCaption(e.target.value)}
+        )}
+
+        {mediaFeedback && (
+          <p role={mediaFeedback.kind === 'error' ? 'alert' : 'status'}
+            className={`mb-4 flex items-start gap-2 rounded-xl p-3 text-sm ${
+              mediaFeedback.kind === 'error' ? 'bg-danger-bg text-danger' : 'bg-success-bg text-success'
+            }`}>
+            {mediaFeedback.kind === 'error'
+              ? <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              : <CheckCircle2 className="mt-0.5 size-4 shrink-0" />}
+            <span className="min-w-0 break-words">{mediaFeedback.text}</span>
+          </p>
+        )}
+
+        <form onSubmit={(e: React.FormEvent) => { e.preventDefault(); setMediaFeedback(null); uploadImagesMut.mutate() }}
+          className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[220px]">
+            <label className="block text-xs font-semibold text-dtl-charcoal mb-1">Upload media</label>
+            <input multiple type="file" accept={SHIPMENT_MEDIA_ACCEPT} onChange={handleMediaSelect}
+              className="block w-full text-sm text-dtl-charcoal file:mr-4 file:py-2 file:px-4 file:rounded-[14px] file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary-dark hover:file:bg-primary/20" />
+            <p className="mt-1 text-[11px] text-dtl-charcoal/70">JPG, PNG, WEBP · MP4, WEBM, MOV · PDF</p>
+          </div>
+          <input placeholder="Caption" value={mediaCaption} onChange={(e: any) => setMediaCaption(e.target.value)}
             className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40" />
-          <select value={imageKind} onChange={(e: any) => setImageKind(e.target.value)}
+          <select value={mediaKindState} onChange={(e: any) => setMediaKindState(e.target.value)}
             className="rounded-[14px] border border-dtl-border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-dtl-yellow/40">
             <option value="progress">Progress</option>
             <option value="pickup">Pickup</option>
@@ -780,7 +991,11 @@ export function AdminShipment() {
             <option value="warehouse">Warehouse</option>
             <option value="port">Port</option>
           </select>
-          <Button type="submit" size="sm" disabled={uploadImagesMut.isPending || imageFiles.length === 0}><Upload className="size-4" /> Upload{imageFiles.length > 0 ? ` (${imageFiles.length})` : ''}</Button>
+          <Button type="submit" size="sm" disabled={uploadImagesMut.isPending || mediaFiles.length === 0}>
+            {uploadImagesMut.isPending
+              ? <><Spinner className="size-4" /> Uploading…</>
+              : <><Upload className="size-4" /> Upload{mediaFiles.length > 0 ? ` (${mediaFiles.length})` : ''}</>}
+          </Button>
         </form>
       </Card>
     </div>
