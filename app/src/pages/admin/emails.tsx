@@ -8,9 +8,19 @@ import {
   Mail, Send, Search, X, CheckCircle2, AlertCircle, Eye, RefreshCw, UserRound, Inbox,
 } from 'lucide-react'
 
-type PreviewPayload = {
-  customer_id: string
+type Recipient = {
+  id: string | null
   email: string
+  full_name?: string | null
+  company?: string | null
+  role?: string
+  registered: boolean
+}
+
+type PreviewPayload = {
+  customer_id?: string
+  email: string
+  recipient_name?: string
   subject: string
   body: string
   tracking_number: string
@@ -23,6 +33,16 @@ const EMPTY_FORM = {
   body: '',
   tracking_number: '',
   template_key: '',
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function isValidEmail(value: string) {
+  return value.length <= 254 && EMAIL_PATTERN.test(value)
 }
 
 export function AdminEmails() {
@@ -39,9 +59,12 @@ export function AdminEmails() {
   const senderAddress: string = (templatesQuery.data as any)?.from ?? 'ParcelVault Logistics <support@parcelvaultlogistics.com>'
 
   const [form, setForm] = useState(EMPTY_FORM)
-  const [selectedCustomer, setSelectedCustomer] = useState<EmailCustomer | null>(null)
+  const [recipient, setRecipient] = useState<Recipient | null>(null)
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerOpen, setCustomerOpen] = useState(false)
+  const [manualEmail, setManualEmail] = useState('')
+  const [manualName, setManualName] = useState('')
+  const [recipientError, setRecipientError] = useState('')
   const [previewInput, setPreviewInput] = useState<PreviewPayload | null>(null)
   const [result, setResult] = useState<{ kind: 'success' | 'error'; text: string; id?: string | null } | null>(null)
 
@@ -63,9 +86,50 @@ export function AdminEmails() {
   }
 
   const chooseCustomer = (customer: EmailCustomer) => {
-    setSelectedCustomer(customer)
+    setRecipient({
+      id: customer.id,
+      email: customer.email,
+      full_name: customer.full_name,
+      company: customer.company,
+      role: customer.role,
+      registered: true,
+    })
     setCustomerSearch('')
     setCustomerOpen(false)
+    setRecipientError('')
+    setResult(null)
+  }
+
+  const selectManualRecipient = (emailValue: string, nameValue = '') => {
+    const email = normalizeEmail(emailValue)
+    if (!email) {
+      setRecipientError('Please enter an email address.')
+      return
+    }
+    if (!isValidEmail(email)) {
+      setRecipientError('Please enter a valid email address, for example name@company.com.')
+      return
+    }
+    setRecipient({
+      id: null,
+      email,
+      full_name: nameValue.trim() || null,
+      company: null,
+      registered: false,
+    })
+    setManualEmail('')
+    setManualName('')
+    setCustomerSearch('')
+    setCustomerOpen(false)
+    setRecipientError('')
+    setResult(null)
+  }
+
+  const useManualRecipient = () => selectManualRecipient(manualEmail, manualName)
+
+  const clearRecipient = () => {
+    setRecipient(null)
+    setRecipientError('')
     setResult(null)
   }
 
@@ -80,16 +144,21 @@ export function AdminEmails() {
     return list.slice(0, 40)
   }, [customers, customerSearch])
 
+  const typedEmail = normalizeEmail(customerSearch)
+  const typedEmailIsValid = isValidEmail(typedEmail)
+  const typedEmailIsRegistered = customers.some(c => c.email.toLowerCase() === typedEmail)
+
   // Debounce the preview so typing is smooth and we do not hammer the API.
   useEffect(() => {
-    if (!selectedCustomer || !form.subject.trim() || !form.body.trim()) {
+    if (!recipient || !form.subject.trim() || !form.body.trim()) {
       setPreviewInput(null)
       return
     }
     const timer = setTimeout(() => {
       setPreviewInput({
-        customer_id: selectedCustomer.id,
-        email: selectedCustomer.email,
+        ...(recipient.id ? { customer_id: recipient.id } : {}),
+        email: recipient.email,
+        recipient_name: recipient.full_name || undefined,
         subject: form.subject,
         body: form.body,
         tracking_number: form.tracking_number,
@@ -97,7 +166,7 @@ export function AdminEmails() {
       })
     }, 450)
     return () => clearTimeout(timer)
-  }, [selectedCustomer, form.subject, form.body, form.tracking_number, form.template_key])
+  }, [recipient, form.subject, form.body, form.tracking_number, form.template_key])
 
   const previewQuery = useQuery({
     queryKey: ['email-preview', previewInput],
@@ -108,12 +177,13 @@ export function AdminEmails() {
 
   const sendMut = useMutation({
     mutationFn: () => {
-      if (!selectedCustomer) throw new Error('Please choose a recipient.')
+      if (!recipient) throw new Error('Please choose a recipient or enter an email address.')
       if (!form.subject.trim()) throw new Error('Please add an email subject.')
       if (!form.body.trim()) throw new Error('Please write the email body.')
       return EmailsApi.send({
-        customer_id: selectedCustomer.id,
-        email: selectedCustomer.email,
+        ...(recipient.id ? { customer_id: recipient.id } : {}),
+        email: recipient.email,
+        recipient_name: recipient.full_name || undefined,
         subject: form.subject.trim(),
         body: form.body,
         tracking_number: form.tracking_number.trim() || undefined,
@@ -123,7 +193,7 @@ export function AdminEmails() {
     onSuccess: (data: any) => {
       setResult({
         kind: 'success',
-        text: `Email sent to ${data?.recipient?.email || selectedCustomer?.email}.`,
+        text: `Email sent to ${data?.recipient?.email || recipient?.email}.`,
         id: data?.id ?? null,
       })
       queryClient.invalidateQueries({ queryKey: ['email-messages'] })
@@ -134,7 +204,7 @@ export function AdminEmails() {
     }),
   })
 
-  const canSend = Boolean(selectedCustomer) && !!form.subject.trim() && !!form.body.trim() && configured && !sendMut.isPending
+  const canSend = Boolean(recipient) && !!form.subject.trim() && !!form.body.trim() && configured && !sendMut.isPending
   const previewHtml: string | undefined = (previewQuery.data as any)?.html
   const previewError: string | undefined = previewQuery.error
     ? (previewQuery.error as any)?.message || 'Preview unavailable.'
@@ -146,8 +216,9 @@ export function AdminEmails() {
         <div>
           <h1 className="text-2xl font-bold text-navy">Email templates</h1>
           <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-            Compose a branded email, choose a professionally designed template, and send it straight to a registered
-            customer. Messages are delivered through Resend from <strong className="text-navy">{senderAddress}</strong>.
+            Compose a branded email, choose a professionally designed template, and send it to any customer — whether
+            they have a registered account or just an email address. Messages are delivered through Resend from{' '}
+            <strong className="text-navy">{senderAddress}</strong>.
           </p>
         </div>
         <div className="rounded-xl bg-background px-4 py-3 text-xs text-text-secondary ring-1 ring-border">
@@ -244,77 +315,169 @@ export function AdminEmails() {
               <UserRound className="size-5 text-primary-dark" /> Recipient
             </h2>
 
-            {selectedCustomer ? (
+            {recipient ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft p-4 ring-1 ring-primary/20">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-navy">
-                    {selectedCustomer.full_name || selectedCustomer.email}
-                  </p>
-                  <p className="truncate text-xs text-text-secondary">{selectedCustomer.email}</p>
-                  {selectedCustomer.company && (
-                    <p className="truncate text-xs text-text-secondary">{selectedCustomer.company}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-bold text-navy">
+                      {recipient.full_name || recipient.email}
+                    </p>
+                    <span className={`rounded-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${
+                      recipient.registered
+                        ? 'bg-white/70 text-primary-dark ring-border'
+                        : 'bg-dtl-yellow/15 text-warning ring-dtl-yellow/30'
+                    }`}>
+                      {recipient.registered ? 'Registered' : 'Manual email'}
+                    </span>
+                  </div>
+                  <p className="truncate text-xs text-text-secondary">{recipient.email}</p>
+                  {recipient.company && (
+                    <p className="truncate text-xs text-text-secondary">{recipient.company}</p>
+                  )}
+                  {recipient.registered && recipient.role && (
+                    <p className="truncate text-xs text-text-secondary">Account: {recipient.role}</p>
                   )}
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setSelectedCustomer(null); setResult(null) }}
+                  onClick={clearRecipient}
                 >
                   <X className="size-4" /> Change
                 </Button>
               </div>
             ) : (
-              <div className="relative">
+              <div className="space-y-4">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-secondary" />
-                  <Input
-                    value={customerSearch}
-                    onChange={(e) => { setCustomerSearch(e.target.value); setCustomerOpen(true) }}
-                    onFocus={() => setCustomerOpen(true)}
-                    onBlur={(e) => {
-                      const next = e.relatedTarget as Node | null
-                      if (!e.currentTarget.parentElement?.parentElement?.contains(next)) setCustomerOpen(false)
-                    }}
-                    placeholder="Search registered customers by name, email or company…"
-                    className="pl-10"
-                    aria-label="Search customers"
-                    autoComplete="off"
-                  />
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-secondary" />
+                    <Input
+                      value={customerSearch}
+                      onChange={(e) => { setCustomerSearch(e.target.value); setCustomerOpen(true) }}
+                      onFocus={() => setCustomerOpen(true)}
+                      onBlur={(e) => {
+                        const next = e.relatedTarget as Node | null
+                        if (!e.currentTarget.parentElement?.parentElement?.contains(next)) setCustomerOpen(false)
+                      }}
+                      placeholder="Search registered customers by name, email or company…"
+                      className="pl-10"
+                      aria-label="Search customers"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  {customerOpen && (
+                    <div className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-border">
+                      {typedEmailIsValid && !typedEmailIsRegistered && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectManualRecipient(typedEmail)}
+                          className="mb-1 flex w-full items-center justify-between gap-3 rounded-lg bg-primary-soft px-3 py-2.5 text-left transition hover:bg-primary/10"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-navy">
+                              Send to {typedEmail}
+                            </span>
+                            <span className="block truncate text-xs text-text-secondary">
+                              Not a registered account — send anyway
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-pill bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-dark ring-1 ring-border">
+                            Any email
+                          </span>
+                        </button>
+                      )}
+                      {customersQuery.isLoading && <p className="p-3 text-sm text-text-secondary">Loading customers…</p>}
+                      {customersQuery.error && (
+                        <p className="p-3 text-sm text-danger">{(customersQuery.error as any)?.message || 'Could not load customers.'}</p>
+                      )}
+                      {!customersQuery.isLoading && !customersQuery.error && filteredCustomers.length === 0 && !typedEmailIsValid && (
+                        <p className="p-3 text-sm text-text-secondary">No matching customers.</p>
+                      )}
+                      {filteredCustomers.map(customer => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => chooseCustomer(customer)}
+                          className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-background"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-navy">
+                              {customer.full_name || customer.email}
+                            </span>
+                            <span className="block truncate text-xs text-text-secondary">
+                              {customer.email}{customer.company ? ` · ${customer.company}` : ''}
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-pill bg-background px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-secondary ring-1 ring-border">
+                            {customer.role}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {customerOpen && (
-                  <div className="absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-border">
-                    {customersQuery.isLoading && <p className="p-3 text-sm text-text-secondary">Loading customers…</p>}
-                    {customersQuery.error && (
-                      <p className="p-3 text-sm text-danger">{(customersQuery.error as any)?.message || 'Could not load customers.'}</p>
-                    )}
-                    {!customersQuery.isLoading && !customersQuery.error && filteredCustomers.length === 0 && (
-                      <p className="p-3 text-sm text-text-secondary">No matching customers.</p>
-                    )}
-                    {filteredCustomers.map(customer => (
-                      <button
-                        key={customer.id}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => chooseCustomer(customer)}
-                        className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-background"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-semibold text-navy">
-                            {customer.full_name || customer.email}
-                          </span>
-                          <span className="block truncate text-xs text-text-secondary">
-                            {customer.email}{customer.company ? ` · ${customer.company}` : ''}
-                          </span>
-                        </span>
-                        <span className="shrink-0 rounded-pill bg-background px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-secondary ring-1 ring-border">
-                          {customer.role}
-                        </span>
-                      </button>
-                    ))}
+                <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.16em] text-text-secondary">
+                  <span className="h-px flex-1 bg-border" />
+                  or send to any email address
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <div>
+                    <Label htmlFor="manual-recipient-email">Email address</Label>
+                    <Input
+                      id="manual-recipient-email"
+                      type="email"
+                      value={manualEmail}
+                      onChange={(e) => { setManualEmail(e.target.value); setRecipientError('') }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); useManualRecipient() }
+                      }}
+                      placeholder="name@company.com"
+                      autoComplete="email"
+                    />
                   </div>
+                  <div>
+                    <Label htmlFor="manual-recipient-name">
+                      Name <span className="font-normal text-text-secondary">(optional)</span>
+                    </Label>
+                    <Input
+                      id="manual-recipient-name"
+                      value={manualName}
+                      onChange={(e) => setManualName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); useManualRecipient() }
+                      }}
+                      placeholder="Recipient name"
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={useManualRecipient}
+                      disabled={!manualEmail.trim()}
+                      className="w-full sm:w-auto"
+                    >
+                      <Mail className="size-4" /> Use email
+                    </Button>
+                  </div>
+                </div>
+
+                {recipientError && (
+                  <p role="alert" className="text-sm text-danger">{recipientError}</p>
                 )}
+
+                <p className="text-xs text-text-secondary">
+                  Registered or not — we will send directly to this address. The optional name fills{' '}
+                  <code className="rounded bg-background px-1">{'{{customer_name}}'}</code> and the greeting.
+                </p>
               </div>
             )}
 
@@ -394,7 +557,7 @@ export function AdminEmails() {
               {previewQuery.isFetching && <Spinner className="size-4" />}
             </div>
 
-            {!selectedCustomer || !form.subject.trim() || !form.body.trim() ? (
+            {!recipient || !form.subject.trim() || !form.body.trim() ? (
               <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 p-8 text-center">
                 <Mail className="size-10 text-border" />
                 <p className="text-sm font-semibold text-navy">Your preview will appear here</p>

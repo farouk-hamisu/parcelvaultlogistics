@@ -12,6 +12,16 @@ const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://www.parcelvaultlogisti
 
 const MAX_SUBJECT = 200
 const MAX_BODY = 20000
+const MAX_EMAIL = 254
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+function normalizeEmail(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function isValidEmail(value) {
+  return value.length <= MAX_EMAIL && EMAIL_PATTERN.test(value)
+}
 
 // Very small in-memory guard so a stuck UI cannot spam the provider.
 const sendHits = new Map()
@@ -126,7 +136,7 @@ function buildEmailHtml({ subject, body, vars }) {
               <a href="mailto:${SUPPORT_EMAIL}" style="color:#06718a;text-decoration:none;">${SUPPORT_EMAIL}</a>
             </p>
             <p style="margin:14px 0 0 0;font-size:11px;line-height:1.6;color:#9aacb8;">
-              This message was sent to you because you have an account with ParcelVault Logistics.
+              This message was sent to you by ParcelVault Logistics.
             </p>
           </td>
         </tr>
@@ -140,8 +150,11 @@ function buildEmailHtml({ subject, body, vars }) {
 }
 
 function buildVars({ customer, trackingNumber }) {
+  const fallbackName = customer?.registered
+    ? customer?.email?.split('@')[0]
+    : 'there'
   return {
-    customer_name: customer?.full_name?.trim() || customer?.email?.split('@')[0] || 'there',
+    customer_name: customer?.full_name?.trim() || fallbackName || 'there',
     customer_email: customer?.email || '',
     tracking_number: trackingNumber ? String(trackingNumber).trim().toUpperCase() : 'your shipment',
     company_name: 'ParcelVault Logistics',
@@ -160,7 +173,23 @@ function resolveContent({ subject, body, customer, trackingNumber }) {
   }
 }
 
-async function findCustomer({ customerId, email }) {
+async function findProfileByEmail(email) {
+  const pattern = email.replace(/[\\%_]/g, '\\$&')
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('id, full_name, email, company, is_active')
+    .ilike('email', pattern)
+    .limit(5)
+  if (error) throw error
+  return (data ?? []).find((profile) => normalizeEmail(profile.email) === email) ?? null
+}
+
+/**
+ * Resolve a recipient from either a registered customer id or any email
+ * address. Registered profiles are linked to the audit log; any other valid
+ * address is accepted as a one-off recipient.
+ */
+async function resolveRecipient({ customerId, email, recipientName }) {
   if (customerId) {
     const { data, error } = await supabaseAdmin
       .from('profiles')
@@ -168,18 +197,33 @@ async function findCustomer({ customerId, email }) {
       .eq('id', customerId)
       .maybeSingle()
     if (error) throw error
-    if (data) return data
+    if (!data) return { error: 'That registered customer could not be found.', status: 404 }
+    return { recipient: { ...data, registered: true } }
   }
-  if (email) {
-    const { data, error } = await supabaseAdmin
-      .from('profiles')
-      .select('id, full_name, email, company, is_active')
-      .ilike('email', String(email).trim())
-      .maybeSingle()
-    if (error) throw error
-    return data ?? null
+
+  const cleanEmail = normalizeEmail(email)
+  if (!cleanEmail) {
+    return { error: 'Please enter a recipient email address.', status: 400 }
   }
-  return null
+  if (!isValidEmail(cleanEmail)) {
+    return { error: 'Please enter a valid email address, for example name@company.com.', status: 400 }
+  }
+
+  const profile = await findProfileByEmail(cleanEmail)
+  if (profile) {
+    return { recipient: { ...profile, registered: true } }
+  }
+
+  return {
+    recipient: {
+      id: null,
+      email: cleanEmail,
+      full_name: String(recipientName ?? '').trim().slice(0, 120) || null,
+      company: null,
+      is_active: true,
+      registered: false,
+    },
+  }
 }
 
 function validatePayload(body = {}) {
@@ -189,7 +233,7 @@ function validatePayload(body = {}) {
   if (subject.length > MAX_SUBJECT) return `The subject must be ${MAX_SUBJECT} characters or fewer.`
   if (!content) return 'Please write the email body.'
   if (content.length > MAX_BODY) return `The email body must be ${MAX_BODY} characters or fewer.`
-  if (!body.customer_id && !body.email) return 'Please choose a recipient.'
+  if (!body.customer_id && !body.email) return 'Please choose a recipient or enter an email address.'
   return null
 }
 
@@ -233,20 +277,28 @@ router.post('/preview', authUser, requireAdmin, async (req, res, next) => {
     const problem = validatePayload(req.body)
     if (problem) return res.status(400).json({ error: problem })
 
-    const customer = await findCustomer({ customerId: req.body.customer_id, email: req.body.email })
-    if (!customer) return res.status(404).json({ error: 'That customer could not be found.' })
+    const { recipient, error: recipientError, status } = await resolveRecipient({
+      customerId: req.body.customer_id,
+      email: req.body.email,
+      recipientName: req.body.recipient_name,
+    })
+    if (recipientError) return res.status(status ?? 400).json({ error: recipientError })
 
     const resolved = resolveContent({
       subject: req.body.subject,
       body: req.body.body,
-      customer,
+      customer: recipient,
       trackingNumber: req.body.tracking_number,
     })
 
     res.json({
       html: resolved.html,
       subject: resolved.subject,
-      recipient: { name: customer.full_name, email: customer.email },
+      recipient: {
+        name: recipient.full_name,
+        email: recipient.email,
+        registered: recipient.registered,
+      },
     })
   } catch (e) { next(e) }
 })
@@ -262,14 +314,17 @@ router.post('/send', authUser, requireAdmin, async (req, res, next) => {
     const problem = validatePayload(req.body)
     if (problem) return res.status(400).json({ error: problem })
 
-    const customer = await findCustomer({ customerId: req.body.customer_id, email: req.body.email })
-    if (!customer) return res.status(404).json({ error: 'That customer could not be found.' })
-    if (!customer.email) return res.status(400).json({ error: 'That customer has no email address on file.' })
+    const { recipient, error: recipientError, status } = await resolveRecipient({
+      customerId: req.body.customer_id,
+      email: req.body.email,
+      recipientName: req.body.recipient_name,
+    })
+    if (recipientError) return res.status(status ?? 400).json({ error: recipientError })
 
     const resolved = resolveContent({
       subject: req.body.subject,
       body: req.body.body,
-      customer,
+      customer: recipient,
       trackingNumber: req.body.tracking_number,
     })
 
@@ -281,9 +336,9 @@ router.post('/send', authUser, requireAdmin, async (req, res, next) => {
     }
 
     const baseLog = {
-      customer_id: customer.id,
-      recipient_email: customer.email,
-      recipient_name: customer.full_name ?? null,
+      customer_id: recipient.id ?? null,
+      recipient_email: recipient.email,
+      recipient_name: recipient.full_name ?? null,
       subject: resolved.subject,
       template_key: req.body.template_key ? String(req.body.template_key).slice(0, 80) : null,
       body_text: resolved.body,
@@ -301,7 +356,7 @@ router.post('/send', authUser, requireAdmin, async (req, res, next) => {
         },
         body: JSON.stringify({
           from: `${FROM_NAME} <${FROM_EMAIL}>`,
-          to: [customer.email],
+          to: [recipient.email],
           subject: resolved.subject,
           html: resolved.html,
           text: resolved.body,
@@ -334,7 +389,11 @@ router.post('/send', authUser, requireAdmin, async (req, res, next) => {
       ok: true,
       id: payload?.id ?? null,
       message: saved ?? null,
-      recipient: { name: customer.full_name, email: customer.email },
+      recipient: {
+        name: recipient.full_name,
+        email: recipient.email,
+        registered: recipient.registered,
+      },
     })
   } catch (e) {
     if (logRow) {
